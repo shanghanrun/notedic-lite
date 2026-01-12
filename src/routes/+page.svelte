@@ -1,6 +1,8 @@
 <script>
     import mammoth from 'mammoth';
     import { Document, Packer, Paragraph, TextRun } from 'docx';
+  import { goto } from '$app/navigation';
+  import { verifyAdmin } from '$lib/pb.svelte';
 
     let files = $state([]); 
     let searchQuery = $state(""); 
@@ -129,6 +131,9 @@
             <div class="search-container">
                 <input type="text" bind:value={searchQuery} placeholder="검색어 입력 (예: 백호)" />
                 <div class="info-badge">결과: <strong>{searchResults.length}</strong>건</div>
+				<button class="go-button" 
+					onclick={()=>{
+						if (verifyAdmin()) goto('/admin')}}>admin</button>
             </div>
         </div>
 
@@ -299,4 +304,8 @@
     .summary-paper { background: white; padding: 40px; border-radius: 4px; box-shadow: 0 4px 20px rgba(0,0,0,0.06); border: 1px solid #e2e8f0; min-height: 400px; }
     .summary-main-title { border-bottom: 2px solid #334155; padding-bottom: 10px; margin-bottom: 30px; font-weight: 800; }
     .empty-file { text-align: center; color: #94a3b8; padding: 40px 0; }
+	.go-button{
+		border: 1.5px solid #2ecc71; color: #27ae60; padding: 8px 15px; border-radius: 20px; cursor: pointer; font-weight: 800; font-size: 0.9rem;
+		margin-left: 40px;
+	}
 </style>
