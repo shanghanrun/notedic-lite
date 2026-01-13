@@ -1,187 +1,54 @@
 <script>
     import { pb } from './../../lib/pb.svelte.js';
-    import { researchState, researchActions } from '$lib/pb.svelte.js';
     import mammoth from 'mammoth';
     import { Document, Packer, Paragraph, TextRun } from 'docx';
     import { goto } from '$app/navigation';
+    import { researchState, researchActions } from '$lib/pb.svelte.js';
+	import { searchUI } from '$lib/searchUI.svelte.js';
+	import { onMount } from 'svelte'
 
     // 1. 초기화 및 데이터 로드
-    $effect(() => { researchActions.login(); });
+	onMount(async ()=> {
+		await researchActions.login(); // 데이터 먼저 로드
+		researchActions.fetchAllFromCollection(); // UI 초기화. 현재 곡 등		
+	})
+
     $effect(() => {
         if (researchState.currentCollection) {
             researchActions.fetchAllFromCollection();
         }
     });
+	
 
-    let files = $state([]); 
-    let searchQuery = $state(""); 
-    let summaryElement = $state(null);
-
-	// ==========================================
-    // [추가] 서치로그 저장 로직
-    // 검색어가 바뀔 때마다 실시간으로 서버에 기록을 남깁니다.
-    // ==========================================
-    // [수정] 감시자: 사용자가 타이핑을 멈추고 1초 뒤에 로그 저장
-	let logTimer = null; // 디바운스를 위한 타이머 변수
     $effect(() => {
-        const query = searchQuery.trim();
-        const results = searchResults;
+        const query = searchUI.searchQuery.trim();
+        const results = searchUI.searchResults;
 
         // 기존 타이머가 있다면 취소 (연속 입력 방지)
-        if (logTimer) clearTimeout(logTimer);
+        if (searchUI.logTimer) clearTimeout(searchUI.logTimer);
 
         if (query && results.length > 0) {
             // 2초(1000ms) 동안 추가 입력이 없으면 실행
-            logTimer = setTimeout(() => {
-                saveSearchLog(query, results);
+            searchUI.logTimer = setTimeout(() => {
+                searchUI.saveSearchLog(query, results);
             }, 2000); 
         }
     });
 
-	// [수정] 로그 저장 로직: 디바운스 적용
-    async function saveSearchLog(query, results) {
-        if (!query.trim() || results.length === 0) return;
-        
-        const usedFilesList = [...new Set(results.map(r => r.fileName))];
-        
-        try {
-            await pb.collection('search_logs').create({
-                query: query,
-                used_files: usedFilesList,
-                total_count: results.length,
-                search_date: new Date().toISOString()
-            });
-            console.log("📝 자동 로그 기록 완료:", query);
-        } catch (err) {
-            console.error("로그 저장 실패:", err);
-        }
-    }
 
-    // 2. 통합 데이터 맵 (미리보기 및 검색용)
-    const allFileData = $derived.by(() => {
-        const combined = [...files, ...researchState.allFiles];
-        return combined.reduce((acc, f) => {
-            const name = f.name || f.filename || "이름 없는 파일";
-            acc[name] = {
-                lines: f.lines || [],
-                isServer: !!f.id
-            };
-            return acc;
-        }, {});
-    });
-
-    // 3. 검색 로직
-    let searchResults = $derived.by(() => {
-        const query = searchQuery.trim().toLowerCase();
-        if (!query) return [];
-        
-        let results = [];
-        Object.entries(allFileData).forEach(([fileName, data]) => {
-            data.lines.forEach(line => {
-                if (line.toLowerCase().includes(query)) {
-                    results.push({ fileName, text: line, isServer: data.isServer });
-                }
-            });
-        });
-        return results;
-    });
-
-    let groupedResults = $derived.by(() => {
-        return searchResults.reduce((acc, curr) => {
-            if (!acc[curr.fileName]) acc[curr.fileName] = [];
-            acc[curr.fileName].push(curr.text);
-            return acc;
-        }, {});
-    });
-
-    // 4. 액션 함수
-    function previewFile(fileName) {
-        const data = allFileData[fileName];
-        if (data && data.lines.length > 0) {
-            const text = data.lines.slice(0, 15).join('\n');
-            alert(`[${fileName}] 미리보기 (상위 15줄):\n\n${text}...`);
-        } else {
-            alert("표시할 내용이 없습니다.");
-        }
-    }
-
-    async function handleFileUpload(e) {
-        const uploadedFiles = Array.from(e.target.files);
-        let newFilesData = [];
-        for (const file of uploadedFiles) {
-            try {
-                let text = file.name.endsWith('.docx') 
-                    ? (await mammoth.extractRawText({ arrayBuffer: await file.arrayBuffer() })).value 
-                    : await file.text();
-                if (text) {
-                    const lines = text.split(/\r?\n/).map(l => l.trim()).filter(l => l !== "");
-                    newFilesData.push({ name: file.name, lines });
-                }
-            } catch (err) { console.error(err); }
-        }
-        files = [...files, ...newFilesData];
-        e.target.value = ""; 
-    }
-
-    function highlightText(fullText, query, isFinal = false) {
-        if (!query) return fullText;
-        const escapedQuery = query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-        const regex = new RegExp(`(${escapedQuery})`, 'gi');
-        return fullText.replace(regex, isFinal ? `<b style="color: blue;">$1</b>` : `<mark class="hl">$1</mark>`);
-    }
-
-    function copyToClipboard() {
-        if (!summaryElement || searchResults.length === 0) return;
-        const range = document.createRange();
-        range.selectNode(summaryElement);
-        window.getSelection().removeAllRanges();
-        window.getSelection().addRange(range);
-        document.execCommand('copy');
-        alert("📋 보고서 내용이 복사되었습니다!");
-        window.getSelection().removeAllRanges();
-    }
-
-    async function saveAsDocx() {
-        if (searchResults.length === 0) return;
-        const sections = [
-            new Paragraph({ children: [new TextRun({ text: `검색어 [${searchQuery}] 분석 결과`, bold: true, size: 36 })], spacing: { after: 400 } })
-        ];
-        for (const fileName in groupedResults) {
-            sections.push(new Paragraph({
-                children: [
-                    new TextRun({ text: `[출처: ${fileName}] `, color: "3498db", bold: true, size: 24 }),
-                    new TextRun({ text: `총 ${groupedResults[fileName].length}건`, color: "666666", size: 20 })
-                ], spacing: { before: 400, after: 200 }
-            }));
-            groupedResults[fileName].forEach(lineText => {
-                const parts = lineText.split(new RegExp(`(${searchQuery})`, 'gi'));
-                sections.push(new Paragraph({
-                    children: parts.map(part => {
-                        const isMatch = part.toLowerCase() === searchQuery.toLowerCase();
-                        return new TextRun({ text: part, bold: isMatch, color: isMatch ? "0000FF" : "000000", size: 22 });
-                    }), spacing: { after: 120 }, indent: { left: 240 }
-                }));
-            });
-        }
-        const blob = await Packer.toBlob(new Document({ sections: [{ children: sections }] }));
-        const a = document.createElement("a");
-        a.href = window.URL.createObjectURL(blob);
-        a.download = `${searchQuery}_연구자료.docx`;
-        a.click();
-    }
 </script>
 
 <div class="admin-container">
     <aside class="col sidebar">
         <header><h3>📂 파일 임포트</h3></header>
         <div class="file-input-wrapper">
-            <label class="custom-file-btn">파일 선택 <input type="file" multiple onchange={handleFileUpload} /></label>
+            <label class="custom-file-btn">파일 선택 <input type="file" multiple onchange={searchUI.handleFileUpload} /></label>
             <p class="hint">docx, txt 파일 지원</p>
         </div>
         
         <div class="file-box">
             <ul class="file-list">
-                {#each Object.entries(allFileData) as [name, data]}
+                {#each Object.entries(searchUI.allFileData) as [name, data]}
                     <li class={data.isServer ? "server-file" : ""}>
                         <div class="file-info">
                             <span>{data.isServer ? "🌐" : "📄"} {name}</span>
@@ -189,7 +56,7 @@
                         </div>
                     </li>
                 {/each}
-                {#if Object.keys(allFileData).length === 0}
+                {#if Object.keys(searchUI.allFileData).length === 0}
                     <li class="empty-file">로드된 파일 없음</li>
                 {/if}
             </ul>
@@ -198,8 +65,8 @@
         <div class="preview-section">
             <h4 class="sidebar-sub-title">🔍 내용 미리보기</h4>
             <div class="preview-btn-list">
-                {#each Object.keys(allFileData) as fileName}
-                    <button class="preview-tag-btn" onclick={() => previewFile(fileName)}>
+                {#each Object.keys(searchUI.allFileData) as fileName}
+                    <button class="preview-tag-btn" onclick={() => searchUI.previewFile(fileName)}>
                         {fileName.slice(0, 10)}...
                     </button>
                 {/each}
@@ -227,7 +94,7 @@
             </div>
         </div>
 
-        <button class="export-btn" onclick={saveAsDocx} disabled={searchResults.length === 0}>
+        <button class="export-btn" onclick={searchUI.saveAsDocx} disabled={searchUI.searchResults.length === 0}>
             <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
                 <polyline points="14 2 14 8 20 8"></polyline>
@@ -239,21 +106,23 @@
     <main class="col main-content">
         <div class="search-header">
             <div class="search-container">
-                <input type="text" bind:value={searchQuery} placeholder="검색어 입력 (예: 백호)" />
-                <div class="info-badge">결과: <strong>{searchResults.length}</strong>건</div>
-                <button class="go-button" onclick={()=>goto('/')}>Home</button>
+                <input type="text" bind:value={searchUI.searchQuery} placeholder="검색어 입력 (예: 백호)" />
+                <div class="info-badge">결과: <strong>{searchUI.searchResults.length}</strong>건</div>
+                <button class="go-button" onclick={()=>{
+					searchUI.reset(); // 이동 전 초기화
+					goto('/')}}>Home</button>
             </div>
         </div>
 
         <div class="scroll-area">
             <section class="results-list">
                 <h4 class="section-title">⚡ 빠른 확인 카드</h4>
-                {#each searchResults as result}
+                {#each searchUI.searchResults as result}
                     <div class="result-card">
                         <div class="card-edge" style="background: {result.isServer ? '#3b82f6' : '#6eb485'}"></div>
                         <div class="card-body">
                             <div class="file-tag">{result.isServer ? "🌐 " : "📄 "}{result.fileName}</div>
-                            <p class="sentence">{@html highlightText(result.text, searchQuery)}</p>
+                            <p class="sentence">{@html searchUI.highlightText(result.text, searchUI.processedQueries, false)}</p>
                         </div>
                     </div>
                 {/each}
@@ -264,18 +133,18 @@
             <section class="final-summary">
                 <div class="summary-header">
                     <h4 class="section-title">📋 종합 정리</h4>
-                    <button class="copy-icon-btn" onclick={copyToClipboard}>📄 전체 복사하기</button>
+                    <button class="copy-icon-btn" onclick={searchUI.copyToClipboard}>📄 전체 복사하기</button>
                 </div>
                 
-                <div class="summary-paper" bind:this={summaryElement}>
-                    <h2 class="summary-main-title">검색어 [{searchQuery}] 분석 보고서</h2>
-                    {#each Object.entries(groupedResults) as [fileName, lines]}
+                <div class="summary-paper" bind:this={searchUI.summaryElement}>
+                    <h2 class="summary-main-title">검색어 [{searchUI.searchQuery}] 분석 보고서</h2>
+                    {#each Object.entries(searchUI.groupedResults) as [fileName, lines]}
                         <div class="summary-group">
                             <h3 class="summary-file-header">
                                 [출처: {fileName}] <small>({lines.length}건)</small>
                             </h3>
                             {#each lines as line}
-                                <p class="summary-line">• {@html highlightText(line, searchQuery, true)}</p>
+                                <p class="summary-line">{@html searchUI.highlightText(line, searchUI.processedQueries, true)}</p>
                             {/each}
                         </div>
                     {/each}

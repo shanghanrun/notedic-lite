@@ -1,12 +1,13 @@
 import PocketBase from 'pocketbase';
 import mammoth from 'mammoth';
 import { PUBLIC_PB_URL } from '$env/static/public';
+import { searchUI } from './searchUI.svelte.js'
 
 export const pb = new PocketBase(PUBLIC_PB_URL);
 
-/**
- * 1. 전역 상태 (Svelte 5 Proxy State)
- */
+
+// 1. 전역 상태 (Svelte 5 Proxy State)
+
 export const researchState = $state({
     allFiles: [],           // 선택된 컬렉션의 파싱된 파일들
     availableCollections: [], // 서버에서 자동 탐색된 컬렉션 목록
@@ -16,12 +17,11 @@ export const researchState = $state({
     isAdmin: false          // 로그인 상태 확인
 });
 
-/**
- * 2. 연구 자료 액션 (Auth + Auto-Discovery + CRUD)
- */
+
+// 2. 연구 자료 액션 (Auth + Auto-Discovery + CRUD)
 export const researchActions = {
     // [AUTH] 관리자 로그인 수정본
-    async login() {
+    async login() { // db에 있는 collect정보에 접근하기 위해서는 관리자권한 필요
         try {
             // 1. 기존 토큰 삭제 (깨끗한 상태에서 시작)
             pb.authStore.clear();
@@ -29,8 +29,6 @@ export const researchActions = {
             // 2. 관리자(Admin) 계정으로 로그인 시도
             // 만약 'users' 컬렉션의 일반 유저라면 authWithPassword가 맞지만,
             // 시스템 컬렉션 목록을 보려면 pb.admins.authWithPassword를 써야 할 수도 있습니다.
-            
-            // 일반 유저 계정이 '관리자 권한'을 가지고 있는 경우:
             // const authData = await pb.admins.authWithPassword('idim7@naver.com', 'iioo789456');
             // SDK의 자동 경로 대신 직접 관리자 인증 엔드포인트로 쏩니다.
             const authData = await pb.send("/api/admins/auth-with-password", {
@@ -77,7 +75,9 @@ export const researchActions = {
             researchState.availableCollections = filtered;
             
             if (filtered.length > 0) {
-                researchState.currentCollection = filtered.includes('hani') ? 'hani' : filtered[0];
+                const defaultSelection = filtered.includes('hani') ? 'hani' : filtered[0];
+                researchState.currentCollection = defaultSelection;
+                //currentCollection이 null이 되는 것을 방지하기 위해, 우선 대체 collection을 넣은 것이다.
             }
         } catch (err) {
             // 6. 여기서 401이 뜬다면 포켓베이스 설정에서 'Admin' 계정으로 로그인해야 함을 의미합니다.
@@ -91,20 +91,33 @@ export const researchActions = {
         if (!target) return;
 
         researchState.isLoading = true;
-        researchState.currentCollection = target;
+        researchState.currentCollection = target; //혹시라도 함수 호출에 의해서 새로운 컬렉션을 지정했다면 currentCollection 의 스테이트도 변화되어야 된다.
 
         try {
             const records = await pb.collection(target).getFullList({
                 sort: '-created',
             });
 
-            const parsedFiles = await Promise.all(records.map(async (record) => {
+            // [수정] docx와 txt 파일만 필터링
+            const filteredRecords = records.filter(record => {
+                const filename = record.file?.toLowerCase() || "";
+                return filename.endsWith('.docx') || filename.endsWith('.txt') || record.type === 'docx' || record.type === 'txt';
+            });
+            // kor_hanja처럼 json 타입 레코드
+            // const hanjaRecord = records.find(r => r.type === 'json' || r.filename === 'kor_hanja');
+            // if (hanjaRecord && hanjaRecord.json) {
+            //     // searchUI의 korHanjaMap에 데이터 주입
+            //     searchUI.korHanjaMap = hanjaRecord.json; 
+            //     console.log("🧠 한자 매핑 데이터 로드 완료:", Object.keys(searchUI.korHanjaMap).length, "개 단어");
+            // }
+
+            const parsedFiles = await Promise.all(filteredRecords.map(async (record) => {
                 const fileUrl = pb.files.getURL(record, record.file);
                 const response = await fetch(fileUrl);
                 const blob = await response.blob();
                 
                 let lines = [];
-                // record.type 필드나 확장자로 docx 판별
+                // record.type 필드나 파일확장자로 docx 판별
                 if (record.type === 'docx' || record.filename?.endsWith('.docx')) {
                     const arrayBuffer = await blob.arrayBuffer();
                     const result = await mammoth.extractRawText({ arrayBuffer });

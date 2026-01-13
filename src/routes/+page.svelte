@@ -1,121 +1,50 @@
 <script>
-    import mammoth from 'mammoth';
-    import { Document, Packer, Paragraph, TextRun } from 'docx';
-  import { goto } from '$app/navigation';
-  import { verifyAdmin } from '$lib/pb.svelte';
+import { goto } from '$app/navigation';
+import { verifyAdmin } from '$lib/pb.svelte';
+import { searchUI } from '$lib/searchUI.svelte';
+import { onMount } from 'svelte'
 
-    let files = $state([]); 
-    let searchQuery = $state(""); 
-    let summaryElement = $state(null);
-
-    let searchResults = $derived.by(() => {
-        const query = searchQuery.trim().toLowerCase();
-        if (!query) return [];
-        let results = [];
-        files.forEach(file => {
-            file.lines.forEach(line => {
-                if (line.toLowerCase().includes(query)) {
-                    results.push({ fileName: file.name, text: line });
-                }
-            });
-        });
-        return results;
+onMount(() => {
+        // 페이지에 들어오자마자 이전 상태 초기화
+        searchUI.reset();         
+        // 서버 데이터(DB)를 다시 신선하게 불러오고 싶다면 추가
+        // pb.fetchAllFromCollection();         
+        console.log("🏠 홈 화면 진입: 검색 상태를 초기화했습니다.");
     });
 
-    let groupedResults = $derived.by(() => {
-        return searchResults.reduce((acc, curr) => {
-            if (!acc[curr.fileName]) acc[curr.fileName] = [];
-            acc[curr.fileName].push(curr.text);
-            return acc;
-        }, {});
-    });
-
-    function copyToClipboard() {
-        if (!summaryElement || searchResults.length === 0) return;
-        const range = document.createRange();
-        range.selectNode(summaryElement);
-        window.getSelection().removeAllRanges();
-        window.getSelection().addRange(range);
-        try {
-            document.execCommand('copy');
-            alert("📋 종합 정리 내용이 복사되었습니다!");
-        } catch (err) { alert("복사 실패..."); }
-        window.getSelection().removeAllRanges();
-    }
-
-    async function handleFileUpload(e) {
-        const uploadedFiles = Array.from(e.target.files);
-        let newFilesData = [];
-        for (const file of uploadedFiles) {
-            try {
-                let text = file.name.endsWith('.docx') 
-                    ? (await mammoth.extractRawText({ arrayBuffer: await file.arrayBuffer() })).value 
-                    : await file.text();
-                if (text) {
-                    const lines = text.split(/\r?\n/).map(l => l.trim()).filter(l => l !== "");
-                    newFilesData.push({ name: file.name, lines });
-                }
-            } catch (err) { console.error(err); }
-        }
-        files = [...files, ...newFilesData];
-        e.target.value = ""; 
-    }
-
-    async function saveAsDocx() {
-        if (searchResults.length === 0) return;
-        const sections = [
-            new Paragraph({ children: [new TextRun({ text: `검색어 [${searchQuery}] 분석 결과`, bold: true, size: 36 })], spacing: { after: 400 } })
-        ];
-        for (const fileName in groupedResults) {
-            sections.push(new Paragraph({
-                children: [
-                    new TextRun({ text: `[출처: ${fileName}] `, color: "3498db", bold: true, size: 24 }),
-                    new TextRun({ text: `총 ${groupedResults[fileName].length}건`, color: "666666", size: 20 })
-                ], spacing: { before: 400, after: 200 }
-            }));
-            groupedResults[fileName].forEach(lineText => {
-                const parts = lineText.split(new RegExp(`(${searchQuery})`, 'gi'));
-                sections.push(new Paragraph({
-                    children: parts.map(part => {
-                        const isMatch = part.toLowerCase() === searchQuery.toLowerCase();
-                        return new TextRun({ text: part, bold: isMatch, color: isMatch ? "0000FF" : "000000", size: 22 });
-                    }), spacing: { after: 120 }, indent: { left: 240 }
-                }));
-            });
-        }
-        const blob = await Packer.toBlob(new Document({ sections: [{ children: sections }] }));
-        const a = document.createElement("a");
-        a.href = window.URL.createObjectURL(blob);
-        a.download = `${searchQuery}_연구자료.docx`;
-        a.click();
-    }
-
-    function highlightText(fullText, query, isFinal = false) {
-        if (!query) return fullText;
-        const escapedQuery = query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-        const regex = new RegExp(`(${escapedQuery})`, 'gi');
-        const replacement = isFinal ? `<b style="color: blue;">$1</b>` : `<mark class="hl">$1</mark>`;
-        return fullText.replace(regex, replacement);
-    }
 </script>
 
 <div class="admin-container">
     <aside class="col sidebar">
         <header><h3>📂 파일 임포트</h3></header>
         <div class="file-input-wrapper">
-            <label class="custom-file-btn">파일 선택 <input type="file" multiple onchange={handleFileUpload} /></label>
+            <label class="custom-file-btn">파일 선택 <input type="file" multiple onchange={(e)=>searchUI.handleFileUpload(e)} /></label>
             <p class="hint">docx, txt 파일(다중 선택 가능)</p>
         </div>
         <div class="file-box">
-            <ul class="file-list">
-                {#each files as file}
-                    <li>📄 {file.name} <span class="count">({file.lines.length}줄)</span></li>
-                {:else}
-                    <li class="empty-file">업로드된 파일이 없습니다.</li>
-                {/each}
-            </ul>
+            {#if searchUI.files.length > 0}
+				<button onclick={searchUI.clearFiles} class="clear-btn">일괄 취소 (Clear)</button>
+				
+				<ul class="file-list">
+					{#each searchUI.files as file, i}
+						<li class="file-item">
+							<label>
+								<input type="checkbox" 
+								class="checkbox"
+								checked={file.checked} 
+								onchange={() => searchUI.toggleFileCheck(i)} />
+								<span class="filename"
+								>{file.name.replace('.docx','').replace('.txt','')}
+								</span>
+							</label>
+						</li>
+					{/each}
+				</ul>
+			{:else}
+				<p class="empty-file">업로드된 파일이 없습니다.</p>
+			{/if}
         </div>
-        <button class="export-btn" onclick={saveAsDocx} disabled={searchResults.length === 0}>
+        <button class="export-btn" onclick={searchUI.saveAsDocx} disabled={searchUI.searchResults.length === 0}>
             <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
                 <polyline points="14 2 14 8 20 8"></polyline>
@@ -129,11 +58,13 @@
     <main class="col main-content">
         <div class="search-header">
             <div class="search-container">
-                <input type="text" bind:value={searchQuery} placeholder="검색어 입력 (예: 백호)" />
-                <div class="info-badge">결과: <strong>{searchResults.length}</strong>건</div>
+                <input type="text" bind:value={searchUI.searchQuery} placeholder="검색어 입력 (예: 백호)" />
+                <div class="info-badge">결과: <strong>{searchUI.searchResults.length}</strong>건</div>
 				<button class="go-button" 
 					onclick={()=>{
-						if (verifyAdmin()) goto('/admin')}}>admin</button>
+						if (verifyAdmin()) {
+							searchUI.reset(); 
+							goto('/admin')}}}>admin</button>
             </div>
         </div>
 
@@ -147,12 +78,12 @@
                     <h4 class="section-title">빠른 확인 카드</h4>
                 </div>
                 
-                {#each searchResults as result}
+                {#each searchUI.searchResults as result}
                     <div class="result-card">
                         <div class="card-edge"></div>
                         <div class="card-body">
                             <div class="file-tag">{result.fileName}</div>
-                            <p class="sentence">{@html highlightText(result.text, searchQuery)}</p>
+                            <p class="sentence">{@html searchUI.highlightText(result.text, searchUI. processedQueries, false)}</p>
                         </div>
                     </div>
                 {/each}
@@ -163,21 +94,21 @@
             <section class="final-summary">
                 <div class="summary-header">
                     <h4 class="section-title">📋 종합 정리</h4>
-                    <button class="copy-icon-btn" onclick={copyToClipboard}>
+                    <button class="copy-icon-btn" onclick={searchUI.copyToClipboard}>
                         <span>📄 전체 복사하기</span>
                     </button>
                 </div>
                 
-                <div class="summary-paper" bind:this={summaryElement}>
-                    <h2 class="summary-main-title">검색어 [{searchQuery}] 분석 보고서</h2>
-                    {#each Object.entries(groupedResults) as [fileName, lines]}
+                <div class="summary-paper" bind:this={searchUI.summaryElement}>
+                    <h2 class="summary-main-title">검색어 [{searchUI.searchQuery}] 분석 보고서</h2>
+                    {#each Object.entries(searchUI.groupedResults) as [fileName, lines]}
                         <div class="summary-group">
                             <h3 style="color: #2563eb; border-bottom: 1px solid #e2e8f0; padding-bottom: 5px; margin-bottom: 10px;">
                                 [출처: {fileName}] <small style="color: #64748b; font-size: 0.9rem; font-weight: normal;">({lines.length}건)</small>
                             </h3>
                             {#each lines as line}
                                 <p style="margin: 0 0 8px 15px; line-height: 1.6; font-size: 1rem; color: #000;">
-                                    {@html highlightText(line, searchQuery, true)}
+                                    {@html searchUI.highlightText(line, searchUI.processedQueries, true)}
                                 </p>
                             {/each}
                         </div>
@@ -308,4 +239,69 @@
 		border: 1.5px solid #2ecc71; color: #27ae60; padding: 8px 15px; border-radius: 20px; cursor: pointer; font-weight: 800; font-size: 0.9rem;
 		margin-left: 40px;
 	}
+	.hint{
+		font-size: 1.2rem;
+	}
+	
+	/* 1. Clear 버튼: 전체 폭 차지 */
+.clear-btn { 
+    display: block; 
+    width: 100%;             /* 전체 폭 */
+    box-sizing: border-box;  /* 패딩 포함 폭 계산 */
+    text-align: center; 
+    background: #f9795a; 
+    color: #ffffff;          /* 가독성을 위해 흰색 글자 추천 */
+    padding: 12px; 
+    border: none;
+    border-radius: 8px; 
+    cursor: pointer; 
+    font-weight: 800; 
+    box-shadow: 0 4px 0 #d95333; 
+    margin-bottom: 15px;     /* 아래 파일 리스트와 간격 */
+    transition: transform 0.1s;
+	font-size: 1rem;
+}
+.clear-btn:active { transform: translateY(2px); box-shadow: 0 2px 0 #d95333; }
+
+/* 파일 리스트 컨테이너 */
+.file-box { 
+    list-style: none; 
+    padding: 0; 
+    margin: 0; 
+}
+
+/* 3. 파일 항목: 줄바꿈 시 들여쓰기 유지 */
+.file-item {
+    display: flex;           /* 체크박스와 텍스트를 가로 배치 */
+    align-items: flex-start; /* 줄이 길어져도 체크박스는 상단 고정 */
+    gap: 12px;               /* 체크박스와 글자 사이 간격 */
+    padding: 12px 5px;
+    border-bottom: 2px solid #494d53; /* 은은한 점선 밑줄 */
+}
+.file-item:hover {
+    background-color: #e6f1fc; /* 마우스를 올리면 어디를 보고 있는지 명확해집니다 */
+}
+
+/* 2. 체크박스 크기 조절 */
+.checkbox {
+    width: 1.2rem;           /* 글자 크기에 맞춤 */
+    height: 1.2rem;
+    margin: 0;               /* 기본 마진 제거 */
+    cursor: pointer;
+    flex-shrink: 0;          /* 글자가 길어져도 체크박스 크기 유지 */
+    margin-top: 0.2rem;      /* 텍스트 첫 줄과 높이 맞춤 */
+}
+
+/* 파일명 스타일 */
+.filename {
+	/* background: rgb(243, 249, 223); */
+	margin-left: 4px;
+    font-size: 1rem;       /* 1.2rem은 조금 클 수 있어 살짝 조정 */
+    font-weight: 700;
+    color: #475569;
+    line-height: 1.4;        /* 줄 간격 */
+    word-break: break-all;   /* 긴 파일명도 안전하게 줄바꿈 */
+    cursor: pointer;
+}
+
 </style>
