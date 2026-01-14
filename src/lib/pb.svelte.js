@@ -103,13 +103,7 @@ export const researchActions = {
                 const filename = record.file?.toLowerCase() || "";
                 return filename.endsWith('.docx') || filename.endsWith('.txt') || record.type === 'docx' || record.type === 'txt';
             });
-            // kor_hanja처럼 json 타입 레코드
-            // const hanjaRecord = records.find(r => r.type === 'json' || r.filename === 'kor_hanja');
-            // if (hanjaRecord && hanjaRecord.json) {
-            //     // searchUI의 korHanjaMap에 데이터 주입
-            //     searchUI.korHanjaMap = hanjaRecord.json; 
-            //     console.log("🧠 한자 매핑 데이터 로드 완료:", Object.keys(searchUI.korHanjaMap).length, "개 단어");
-            // }
+
 
             const parsedFiles = await Promise.all(filteredRecords.map(async (record) => {
                 const fileUrl = pb.files.getURL(record, record.file);
