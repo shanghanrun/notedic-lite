@@ -2,38 +2,64 @@ import { pb } from './pb.svelte.js';
 import { researchState } from './pb.svelte.js';
 import mammoth from 'mammoth';
 import { Document, Packer, Paragraph, TextRun } from 'docx';
-// import { renderAsync } from 'docx-preview';
 
 class IndexSearchUI {
     /* =========================
       1. STATE
     ========================= */
-    files = $state([]);                  // 로컬 파일
-    allFiles = $state([]);               // 서버 파일
+    files = $state([]);                  
+    allFiles = $state([]);               
     searchQuery = $state("");
+	actualQuery = $state(""); // 실제 검색에 사용될 쿼리
     summaryElement = $state(null);
-    indexDataMap = $state({});           // { fileId: indexJSON }
-    indexMap = $state({});               // admin UI용 alias
+    indexDataMap = $state({});           
+    indexMap = $state({});               
     isLoading = $state(false);
     isPreloading = $state(false);
     currentCollection = $state('hani');
     availableCollections = $state(['hani']);
 
+    progressLabel = $state("");    
+    progressValue = $state(0);     
+    isIndexing = $state(false);   
+	//검색어 입력에 대한 즉각반응성 완화위한 것
+	_searchTimeout = null;
+
+	selectedFiles = $state(new Set()); //체크박스 선택된 파일 ID들
+	
+
     /* =========================
       2. DERIVED
     ========================= */
     get processedQueries() {
-        const q = this.searchQuery.trim();
+        // searchQuery가 아니라 actualQuery를 바라봄으로써 
+        // 타이핑 중에는 이 계산이 실행되지 않도록 차단합니다.
+        const q = this.actualQuery.trim();
         if (!q) return [];
         return q.split('/').map(v => v.trim()).filter(Boolean);
     }
+	// 입력 시 호출할 함수 (검색창의 bind:value 대신 oninput으로 연결 추천)
+	handleInput(e) {
+        // 이벤트 객체에서 안전하게 값을 가져옵니다.
+		const value = e?.target?.value ?? ""; 
+		
+		this.searchQuery = value; // 입력창 즉시 반영 (반응성)
+
+        // 이전에 예약된 검색이 있다면 취소
+        if (this._searchTimeout) clearTimeout(this._searchTimeout);
+
+        // 300ms(0.3초) 동안 추가 입력이 없으면 그때 actualQuery를 업데이트
+        this._searchTimeout = setTimeout(() => {
+            this.actualQuery = this.searchQuery;
+            console.log("🔍 검색 실행:", this.actualQuery);
+        }, 300);
+    }
+
 
     get allFileData() {
-        // 로컬과 서버 파일을 통합하여 표시용 객체 생성
         const local = this.files.map(f => ({ ...f, isServer: false }));
         const server = this.allFiles.map(f => ({ ...f, isServer: true }));
         
-        // UI에서 {#each Object.entries...} 로 쓰기 위한 변환
         return [...local, ...server].reduce((acc, f, index) => {
             const key = f.filename || f.name || `file_${index}`;
             acc[key] = f;
@@ -46,6 +72,9 @@ class IndexSearchUI {
         if (!queries.length) return [];
         const results = [];
         this.allFiles.forEach(file => {
+			// 체크박스에 체크되지 않은 파일은 건너뜀
+            if (!this.selectedFiles.has(file.id)) return;
+
             const indexData = this.indexDataMap[file.id];
             if (!file.isIndexed || !indexData || !file.lines) return;
             const matched = new Set();
@@ -87,131 +116,129 @@ class IndexSearchUI {
                 sort: '-created' 
             });
 
-            console.log("📥 서버에서 받은 원본 데이터:", records);
-
-            // 1. 유연한 필터링 및 이름 통일
             this.allFiles = records.filter(r => {
-                // PocketBase 필드명이 'file'일 수도, 'filename'일 수도 있으므로 둘 다 체크
                 const actualName = r.filename || r.file || "";
                 const name = String(actualName).toLowerCase();
-                
-                // .docx 확장자 확인 (kor_hanja 제외)
                 return name.endsWith('.docx') && !name.includes('kor_hanja');
             }).map(r => {
-                // Svelte Proxy 객체 내에서 다루기 쉽도록 속성 표준화
                 return {
-                    ...r, // 원본 ID 및 PocketBase 메타데이터 유지
+                    ...r,
                     filename: r.filename || r.file || "이름 없음",
-                    lines: [] // 초기화
+                    lines: [] 
                 };
             });
 
-            console.log("✅ 필터링 후 allFiles 상태:", $state.snapshot(this.allFiles));
+			// 이미 인덱싱된 파일은 미리 선택 상태로 둠
+            this.allFiles.forEach(f => { if(f.isIndexed) this.selectedFiles.add(f.id); });
 
-            // 2. 인덱스 데이터 미리 가져오기
             await this.preloadIndices();
             
         } catch (e) {
-            console.error('❌ 파일 목록 로딩 실패:', e);
+            console.error('❌ 목록 로딩 실패:', e);
             alert("서버 서재 목록을 불러오지 못했습니다.");
         } finally {
             this.isLoading = false;
         }
     }
 
-
     async loadFileLines(file) {
-		if (file.lines?.length > 0) return;
-
-		try {
-			// file.file이 실제 파일 데이터가 저장된 필드명이라고 가정합니다.
-			const fileUrl = pb.files.getURL(file, file.file);
-			const response = await fetch(`${fileUrl}?t=${Date.now()}`);
-			
-			if (!response.ok) throw new Error(`HTTP ${response.status}`);
-			const arrayBuffer = await response.arrayBuffer();
-
-			// [수정] import한 mammoth를 직접 쓰거나, 없으면 window.mammoth를 사용
-			const m = mammoth || window.mammoth; 
-			if (!m) throw new Error("Mammoth 라이브러리를 찾을 수 없습니다.");
-
-			const result = await m.extractRawText({ arrayBuffer });
-			if (!result?.value) throw new Error("텍스트 추출 결과가 비어있습니다.");
-
-			// 텍스트 정제 및 라인 분할
-			file.lines = result.value.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
-			console.log(`✅ [${file.filename}] ${file.lines.length}줄 로드 성공`);
-		} catch (err) {
-			console.error("❌ 파일 로드 실패:", err);
-			throw err;
-		}
-	}
+        if (file.lines?.length > 0) return;
+        try {
+            const fileUrl = pb.files.getURL(file, file.file);
+            const response = await fetch(`${fileUrl}?t=${Date.now()}`);
+            if (!response.ok) throw new Error(`HTTP ${response.status}`);
+            const arrayBuffer = await response.arrayBuffer();
+            const m = mammoth || window.mammoth; 
+            const result = await m.extractRawText({ arrayBuffer });
+            file.lines = result.value.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+        } catch (err) {
+            console.error("❌ 파일 로드 실패:", err);
+            throw err;
+        }
+    }
 
     /* =========================
-   5. INDEX GENERATION (대용량 최적화 버전)
-	========================= */
-	async generateAndUploadIndex(file) {
-		try {
-			// 1. 작업 직전 서버에서 최신 레코드 가져오기 (Proxy 오염 방지)
-			const colName = this.currentCollection || 'hani';
-			const freshRecord = await pb.collection(colName).getOne(file.id);
-			
-			// 2. 텍스트 추출 실행
-			await this.loadFileLines(freshRecord); 
-			if (!freshRecord.lines?.length) return;
+      5. INDEX GENERATION (다이어트 & 4글자 제한 버전)
+    ========================= */
+	// 체크박스 토글 함수
+    toggleFileSelection(fileId) {
+        if (this.selectedFiles.has(fileId)) {
+            this.selectedFiles.delete(fileId);
+        } else {
+            this.selectedFiles.add(fileId);
+        }
+    }
 
-			console.log(`🚀 [${freshRecord.filename}] 인덱싱 시작 (총 ${freshRecord.lines.length}행)`);
+    // [강력 다이어트] 인덱스 생성 로직 (3글자 제한)
+    async generateAndUploadIndex(file) {
+        this.isIndexing = true;
+        try {
+            this.progressLabel = "텍스트 분석 중...";
+            const colName = 'hani';
+            const freshRecord = await pb.collection(colName).getOne(file.id);
+            
+            const fileUrl = pb.files.getURL(freshRecord, freshRecord.file || freshRecord.filename);
+            const response = await fetch(`${fileUrl}?t=${Date.now()}`);
+            const arrayBuffer = await response.arrayBuffer();
+            const result = await mammoth.extractRawText({ arrayBuffer });
+            const lines = result.value.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
 
-			// 3. 인덱스 빌드 (Map & Set 사용으로 고속 처리)
-			const tempMap = new Map();
-			freshRecord.lines.forEach((line, lineIdx) => {
-				if (!line) return;
-				// 한글/한자 연속된 블록 추출
-				const blocks = line.match(/[\u4E00-\u9FFF]+|[\uAC00-\uD7AF]+/g) || [];
-				blocks.forEach(block => {
-					// N-gram (1글자부터 블록 전체 길이까지 모든 조합)
-					for (let len = 1; len <= block.length; len++) {
-						for (let start = 0; start <= block.length - len; start++) {
-							const token = block.substring(start, start + len);
-							if (!tempMap.has(token)) tempMap.set(token, new Set());
-							tempMap.get(token).add(lineIdx);
-						}
-					}
-				});
-			});
+            const tempMap = new Map();
+            for (let i = 0; i < lines.length; i++) {
+                const line = lines[i];
+                // 한글/한자 블록만 추출 (숫자/기호 인덱싱 제외로 용량 절감)
+                const blocks = line.match(/[\u4E00-\u9FFF]+|[\uAC00-\uD7AF]+/g) || [];
+                blocks.forEach(block => {
+                    // 최대 3글자로 제한하여 15MB 이하 유지
+                    const maxN = Math.min(block.length, 3); 
+                    for (let len = 1; len <= maxN; len++) {
+                        for (let start = 0; start <= block.length - len; start++) {
+                            const token = block.substring(start, start + len);
+                            if (!tempMap.has(token)) tempMap.set(token, new Set());
+                            tempMap.get(token).add(i);
+                        }
+                    }
+                });
+                if (i % 1000 === 0) {
+                    this.progressValue = 20 + Math.floor((i / lines.length) * 50);
+                    await new Promise(r => setTimeout(r, 0));
+                }
+            }
 
-			// 4. [RangeError 해결책] 수동 JSON 직렬화 (문자열 조각 이어붙이기)
-			// 큰 객체를 한꺼번에 JSON.stringify 하면 메모리 터짐. 조각조각 Blob화.
-			let jsonParts = ["{"];
-			let isFirst = true;
-			for (const [token, lineSet] of tempMap.entries()) {
-				if (!isFirst) jsonParts.push(",");
-				jsonParts.push(`${JSON.stringify(token)}:${JSON.stringify(Array.from(lineSet))}`);
-				isFirst = false;
-			}
-			jsonParts.push("}");
+            this.progressLabel = "인덱스 압축 및 서버 전송 중...";
+            let jsonParts = ["{"];
+            let isFirst = true;
+            for (const [token, lineSet] of tempMap.entries()) {
+                if (!isFirst) jsonParts.push(",");
+                jsonParts.push(`"${token}":[${Array.from(lineSet).join(',')}]`);
+                isFirst = false;
+            }
+            jsonParts.push("}");
 
-			const jsonBlob = new Blob(jsonParts, { type: 'application/json' });
-			tempMap.clear(); // 메모리 즉시 해제
+            const jsonBlob = new Blob(jsonParts, { type: 'application/json' });
+            
+            // 용량 체크 로그
+            console.log(`최종 인덱스 용량: ${(jsonBlob.size / 1024 / 1024).toFixed(2)}MB`);
 
-			// 5. 서버에 인덱스 파일 업로드
-			const formData = new FormData();
-			formData.append('index_file', jsonBlob, `index_${freshRecord.id}.json`);
-			formData.append('isIndexed', 'true');
+            const formData = new FormData();
+            formData.append('index_file', jsonBlob, `index_${freshRecord.id}.json`);
+            formData.append('isIndexed', 'true');
 
-			await pb.collection(colName).update(freshRecord.id, formData);
-			
-			// 6. 현재 UI 상태 업데이트
-			this.indexDataMap[file.id] = JSON.parse(await jsonBlob.text());
-			file.isIndexed = true;
-			file.lines = freshRecord.lines; // 검색을 위해 lines도 유지
-			
-			alert(`✅ [${file.filename}] 인덱싱 완료!`);
-		} catch (err) {
-			console.error("❌ 인덱싱 치명적 오류:", err);
-			alert(`인덱싱 실패: ${err.message}`);
-		}
-	}
+            await pb.collection(colName).update(freshRecord.id, formData);
+            
+            this.indexDataMap[file.id] = JSON.parse(await jsonBlob.text());
+            file.isIndexed = true;
+            file.lines = lines;
+            this.selectedFiles.add(file.id); // 생성 후 자동 선택
+            this.progressValue = 100;
+            this.progressLabel = "완료!";
+            setTimeout(() => { this.isIndexing = false; }, 1000);
+        } catch (err) {
+            console.error(err);
+            this.isIndexing = false;
+            alert("용량 초과 혹은 네트워크 오류가 발생했습니다.");
+        }
+    }
 
     async generateIndex() {
         for (const file of this.allFiles) {
@@ -222,26 +249,29 @@ class IndexSearchUI {
     }
 
     async preloadIndices() {
-        const targets = this.allFiles.filter(f => f.isIndexed && f.index_file);
-        await Promise.all(targets.map(async f => {
-            if (this.indexDataMap[f.id]) return;
-            const url = pb.files.getURL(f, f.index_file);
-            const res = await fetch(url);
-            if (res.ok) {
-                this.indexDataMap[f.id] = await res.json();
-            }
-        }));
-        this.indexMap = this.indexDataMap;
-    }
+		const targets = this.allFiles.filter(f => f.isIndexed);
+		
+		await Promise.all(targets.map(async f => {
+			// 1. 인덱스 파일 로드 (이미 로드된 경우 패스)
+			if (!this.indexDataMap[f.id] && f.index_file) {
+				const idxUrl = pb.files.getURL(f, f.index_file);
+				const res = await fetch(idxUrl);
+				if (res.ok) this.indexDataMap[f.id] = await res.json();
+			}
 
-    /* =========================
-      6. LOCAL FILE
-    ========================= */
+			// 2. 본문 텍스트 로드 (이게 있어야 검색 결과가 화면에 뜹니다!)
+			if (!f.lines || f.lines.length === 0) {
+				await this.loadFileLines(f);
+			}
+		}));
+	}
+
     handleFileUpload = async (e) => {
         const uploaded = Array.from(e.target.files);
         for (const f of uploaded) {
+            const buffer = await f.arrayBuffer();
             const text = f.name.endsWith('.docx')
-                ? (await mammoth.extractRawText({ arrayBuffer: await f.arrayBuffer() })).value
+                ? (await mammoth.extractRawText({ arrayBuffer: buffer })).value
                 : await f.text();
             this.files.push({
                 name: f.name,
@@ -251,9 +281,6 @@ class IndexSearchUI {
         e.target.value = '';
     };
 
-    /* =========================
-      7. UTIL
-    ========================= */
     copyToClipboard() {
         if (!this.summaryElement) return;
         const r = document.createRange();
@@ -287,9 +314,11 @@ class IndexSearchUI {
         if (!fullText) return "";
         const targetQueries = (queries && queries.length > 0) ? queries.flat() : this.processedQueries;
         if (targetQueries.length === 0) return fullText;
+        
         let highlighted = fullText;
         const colors = isFinal ? ['#0000FF', '#FF0000', '#2ecc71', '#e67e22'] : ['#fde047', '#ffcfdf', '#d1fae5', '#e0e7ff'];
         const sortedQueries = [...new Set(targetQueries)].sort((a, b) => b.length - a.length);
+        
         sortedQueries.forEach((query) => {
             if (!query) return;
             const escapedQuery = query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');

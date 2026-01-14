@@ -34,13 +34,6 @@
             <p>로딩 중...</p>
         {:else}
             <p>파일 수: {indexSearchUI.allFiles.length}</p>
-            <p>
-            전체 키 수:
-            {
-                Object.values(indexSearchUI.indexMap)
-                .reduce((sum, idx) => sum + Object.keys(idx).length, 0)
-            }
-            </p>
         {/if}
         
         <div class="file-input-wrapper">
@@ -48,17 +41,43 @@
                 📄 로컬 파일 검색 전용 추가 
                 <input type="file" multiple onchange={indexSearchUI.handleFileUpload} />
             </label>
-            <p class="hint">인덱싱되지 않은 임시 파일들</p>
+            
         </div>
 
         <div class="file-box">
+            <h4>파일 상태 모니터</h4>
             <ul class="file-list">
-                {#each Object.entries(indexSearchUI.allFileData) as [name, data]}
+                <!-- {#each Object.entries(indexSearchUI.allFileData) as [name, data]}
                     <li class={data.isServer ? "server-file" : ""}>
                         <div class="file-info">
                             <span>{data.isServer ? "🌐" : "📄"} {name}</span>
                             <span class="count">({data.lines?.length || 0}줄)</span>
                         </div>
+                    </li>
+                {/each} -->
+                {#each indexSearchUI.allFiles as file}
+                    <li class="flex items-center gap-2 mb-2">
+                        <input 
+                            type="checkbox" 
+                            checked={indexSearchUI.selectedFiles.has(file.id)}
+                            onchange={() => indexSearchUI.toggleFileSelection(file.id)}
+                            disabled={!file.isIndexed} 
+                        />
+                        
+                        <span class={file.isIndexed ? "text-blue-600" : "text-gray-400"}>
+                            {file.filename} ({file.lines?.length || 0}줄)
+                        </span>
+
+                        {#if !file.isIndexed}
+                            <button 
+                                onclick={() => indexSearchUI.generateAndUploadIndex(file)}
+                                class="px-2 py-1 text-xs bg-purple-500 text-white rounded"
+                            >
+                                인덱스 생성
+                            </button>
+                        {:else}
+                            <span class="text-xs text-green-500 font-bold">✓ 완료</span>
+                        {/if}
                     </li>
                 {/each}
             </ul>
@@ -81,20 +100,53 @@
         <div class="indexing-panel">
             <h4 class="sidebar-sub-title">⚡ 인덱스 상태 관리</h4>
             <div class="indexing-list">
-                {#each indexSearchUI.allFiles as file}
-                    <div class="file-row">
-                        <span class="file-name-mini">{file.filename}</span>
-                        <button 
-                            type="button"
-                            class="index-status-btn {file.isIndexed ? 'complete' : 'pending'}"
-                            onclick={() => handleIndexing(file)}
-                        >
-                            {file.isIndexed ? "✅ 완료 (재생성)" : "⚡ 인덱스 생성"}
-                        </button>
+                 {#each indexSearchUI.allFiles as file}
+                    <div class="flex items-center justify-between p-2 bg-white rounded border shadow-sm">
+                        <div class="flex items-center gap-2 overflow-hidden">
+                            <input 
+                                type="checkbox" 
+                                checked={indexSearchUI.selectedFiles.has(file.id)}
+                                onchange={() => indexSearchUI.toggleFileSelection(file.id)}
+                                disabled={!file.isIndexed}
+                                class="w-4 h-4 cursor-pointer"
+                            />
+                            <div class="flex flex-col truncate">
+                                <span class="text-xs font-medium truncate">{file.filename}</span>
+                                <span class="text-[10px] text-gray-400">{file.lines?.length || 0}줄 로드됨</span>
+                            </div>
+                        </div>
+
+                        {#if file.isIndexed}
+                            <button 
+                                onclick={() => indexSearchUI.generateAndUploadIndex(file)}
+                                class="px-2 py-1 text-[10px] bg-green-100 text-green-700 rounded hover:bg-green-200 border border-green-300"
+                            >
+                                완료 (재생성)
+                            </button>
+                        {:else}
+                            <button 
+                                onclick={() => indexSearchUI.generateAndUploadIndex(file)}
+                                class="px-2 py-1 text-[10px] bg-purple-600 text-white rounded hover:bg-purple-700 animate-pulse"
+                            >
+                                인덱스 생성
+                            </button>
+                        {/if}
                     </div>
                 {/each}
             </div>
         </div>
+
+        {#if indexSearchUI.isIndexing}
+        <div class="progress-container">
+            <div class="progress-info">
+                <span class="label">{indexSearchUI.progressLabel}</span>
+                <span class="percent">{indexSearchUI.progressValue}%</span>
+            </div>
+            <div class="progress-bar-bg">
+                <div class="progress-bar-fill" style="width: {indexSearchUI.progressValue}%"></div>
+            </div>
+        </div>
+        {/if}
 
         <button class="export-btn" onclick={() => indexSearchUI.saveAsDocx()} disabled={indexSearchUI.searchResults.length === 0}>
             결과 DOCX 저장
@@ -104,8 +156,16 @@
     <main class="col main-content">
         <div class="search-header">
             <div class="search-container">
-                <input type="text" bind:value={indexSearchUI.searchQuery} placeholder="검색어 입력 (예: 시호/백호)" />
-                <div class="info-badge">매칭: <strong>{indexSearchUI.searchResults.length}</strong>건</div>
+                <!-- <input type="text" bind:value={indexSearchUI.searchQuery} placeholder="검색어 입력 (예: 시호/백호)" /> -->
+                <input 
+                    type="text" 
+                    value={indexSearchUI.searchQuery}
+                    oninput={(e) => indexSearchUI.handleInput(e)}
+                    placeholder="검색어 입력 (예: 氣/血)"
+                    class="search-input"
+                />
+                
+                            <div class="info-badge">매칭: <strong>{indexSearchUI.searchResults.length}</strong>건</div>
                 <button class="go-button" onclick={() => { indexSearchUI.reset(); goto('/'); }}>Home</button>
             </div>
         </div>
