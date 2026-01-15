@@ -61,10 +61,12 @@ onMount(() => {
                 <input type="text" bind:value={searchUI.searchQuery} placeholder="검색어 입력 (예: 백호)" />
                 <div class="info-badge">결과: <strong>{searchUI.searchResults.length}</strong>건</div>
 				<button class="go-button" 
+					onclick={()=>{goto('/admin')}}>admin</button>
+				<!-- <button class="go-button" 
 					onclick={()=>{
 						if (verifyAdmin()) {
 							searchUI.reset(); 
-							goto('/admin')}}}>admin</button>
+							goto('/admin')}}}>admin</button> -->
             </div>
         </div>
 

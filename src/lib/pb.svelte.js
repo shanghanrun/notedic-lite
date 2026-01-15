@@ -20,6 +20,26 @@ export const researchState = $state({
 
 // 2. 연구 자료 액션 (Auth + Auto-Discovery + CRUD)
 export const researchActions = {
+    // [INITIALIZE] 전체 시스템 초기화 로직
+    async init() {
+        try {
+            // 1. 로그인 상태가 아니라면 로그인 시도
+            if (!pb.authStore.isValid) {
+                await this.login();
+            } else {
+                // 2. 로그인되어 있다면 목록 갱신
+                await this.loadCollections();
+                if (researchState.currentCollection) {
+                    await this.fetchAllFromCollection(researchState.currentCollection);
+                }
+            }
+            console.log("🔄 연구 자료 시스템 초기화 완료");
+        } catch (err) {
+            console.error("❌ 초기화 중 에러:", err);
+        }
+    },
+
+
     // [AUTH] 관리자 로그인 수정본
     async login() { // db에 있는 collect정보에 접근하기 위해서는 관리자권한 필요
         try {
@@ -49,7 +69,7 @@ export const researchActions = {
                 
                 // 4. 약간의 지연을 주어 토큰이 헤더에 완전히 안착하게 한 뒤 목록 호출
                 setTimeout(async () => {
-                    await this.loadCollections();
+                    await loadCollections();
                 }, 100); 
             }
         } catch (err) {
@@ -140,8 +160,12 @@ export const researchActions = {
 
     // [CREATE] 새로운 연구 파일 추가
     async uploadFile(formData) {
+        // 현재 UI에서 선택된 컬렉션 이름 (예: 'hani')
+    	const collectionName = researchState.currentCollection || 'hani';
+
         try {
-            const record = await pb.collection(researchState.currentCollection).create(formData);
+            const record = await pb.collection(collectionName).create(formData);
+            console.log('init 실행전')
             await this.init(); // 목록 갱신
             return record;
         } catch (err) {
@@ -180,7 +204,7 @@ export const researchActions = {
 
 // 관리자 비밀번호 확인 함수
 export function verifyAdmin() {
-    const password = prompt("관리자 비밀번호를 입력하세요:");
+    const password = prompt("관리자용입니다. 관리자 비밀번호를 입력하세요:");
     if (password === "741852") {
         return true;
     } else {
