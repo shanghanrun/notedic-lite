@@ -94,7 +94,10 @@ class SearchUI {
 
             file.lines.forEach((line, i) => {
                 if (queries.some(q => line.includes(q))) {
-                    const isAndMatch = queries.every(q => line.includes(q));
+                    
+                    // [수정 핵심] 검색어가 2개 이상일 때만 AND 매칭(isAndMatch)을 true로 설정
+                    const isAndMatch = queries.length > 1 && queries.every(q => text.includes(q));
+
                     results.push({
                         id: file.name + i, // 고유 키
                         fileName: file.name,

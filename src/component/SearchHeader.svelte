@@ -44,40 +44,47 @@
         padding: 16px; 
         border-bottom: 1px solid #e5e7eb; 
         background: white;
+        /* 헤더가 항상 상단에 고정되게 하려면 아래 주석을 해제하세요 */
+        /* position: sticky; top: 0; z-index: 100; */
     }
     
     .search-container { 
         display: flex; 
         gap: 12px; 
-        align-items: center; 
+        align-items: center;
+        max-width: 1200px; /* 너무 넓게 퍼지는 걸 방지 */
+        margin: 0 auto;    /* 중앙 정렬 */
+        width: 100%;
     }
 
     .search-input { 
         flex: 1; 
-        padding: 10px; 
+        min-width: 200px;  /* 너무 작아지지 않게 방지 */
+        padding: 10px 16px; 
         border: 1px solid #d1d5db; 
         border-radius: 6px; 
-        font-size: 24px; 
-        margin-left: 140px; /* 원본 레이아웃 여백 유지 */
+        font-size: 20px;   /* 24px에서 살짝 줄여서 노트북 가독성 향상 */
+        outline-color: #2563eb;
     }
 
     .search-button { 
         background: #2563eb; 
         color: white; 
-        padding: 10px 20px; 
+        padding: 10px 24px; 
         border-radius: 6px; 
         font-weight: bold; 
         border: none; 
         cursor: pointer; 
-        margin-left: 40px;
+        white-space: nowrap; /* 글자가 밑으로 떨어지지 않게 고정 */
         transition: background 0.2s;
     }
     .search-button:hover { background: #1d4ed8; }
 
     .info-badge { 
-        margin-left: 40px; 
-        font-size: 1.1rem;
+        white-space: nowrap;
+        font-size: 1rem;
         color: #4b5563;
+        padding: 0 10px;
     }
     .match-count { 
         font-weight: 800; 
@@ -87,17 +94,29 @@
     .go-button { 
         border: 1.5px solid #2ecc71; 
         color: #27ae60; 
-        padding: 8px 15px; 
+        padding: 8px 20px; 
         border-radius: 20px; 
         cursor: pointer; 
         font-weight: 800; 
         font-size: 0.9rem;
-        margin-left: 40px;
-        margin-right: 50px;
+        white-space: nowrap;
         transition: all 0.2s;
     }
     .go-button:hover { 
         background: #2ecc71; 
         color: white; 
+    }
+
+    /* 노트북이나 태블릿 등 화면이 작아질 때를 위한 '마법의 코드' */
+    @media (max-width: 1024px) {
+        .search-container {
+            gap: 8px;
+        }
+        .search-input {
+            font-size: 18px;
+        }
+        .info-badge, .go-button {
+            font-size: 0.85rem;
+        }
     }
 </style>

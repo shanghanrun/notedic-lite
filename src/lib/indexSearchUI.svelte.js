@@ -122,7 +122,10 @@ class IndexSearchUI {
             matchedIndices.forEach(i => {
                 const text = file.lines[i];
                 if (!text) return;
-                const isAndMatch = queries.every(q => text.includes(q));
+                
+                // [수정 핵심] 검색어가 2개 이상일 때만 AND 매칭(isAndMatch)을 true로 설정
+                const isAndMatch = queries.length > 1 && queries.every(q => text.includes(q));
+
 
                 results.push({
                     id: file.id,
