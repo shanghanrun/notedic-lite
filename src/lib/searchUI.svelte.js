@@ -4,51 +4,151 @@ import mammoth from 'mammoth';
 import { Document, Packer, Paragraph, TextRun } from 'docx';
 
 class SearchUI {
+    type ="local"; // 일반 파일을 다루는 페이지용
     // 1. 상태 (State)
 	files = $state([]) // 각 파일은 { name, lines, checked: true } 형태
+    allFiles = $state([]);  
     searchQuery = $state("");
     logTimer = null;
 	summaryElement = $state(null)
-	// korHanjaMap = $state({})
+    selectedFiles = $state(new Set()); 
 
-	// [유니코드 검사] 한글이 포함되어 있는지 판별
-    // isHangul(text) {
-    //     return /[가-힣]/.test(text);
-    // }
+    // 가상 스크롤 상태
+    scrollTop = $state(0);
+    containerHeight = $state(760); 
+    itemHeight = $state(180);    
 
-    // [단순 쿼리 생성] '시호/백호' -> ['시호', '백호']
+    // [최적화 핵심] 정규식 및 컬러 맵 캐싱
+    cachedRegex = $state(null); 
+    queryColorMap = new Map();
+	colorMap = new Map();
+
+
     get processedQueries() {
-        const query = this.searchQuery.trim();
-        if (!query) return [];
-
-        // 1. '/' 구분자로 OR 키워드 분리
-        return query.split('/').map(t => t.trim()).filter(Boolean);
+        const q = this.searchQuery.trim();
+        if (!q) return [];
+        // 중복 제거 및 긴 단어 우선순위 정렬된 배열 반환
+        return [...new Set(q.split('/').map(v => v.trim()).filter(Boolean))];
     }
 
-    // 2. 파생 데이터 (Derived) - 원본 데이터는 researchState에서 참조
-	// 체크된 파일만 대상으로 검색 결과 도출
+    // [핵심] 현재 눈에 보이는 결과만 실시간 계산 (가상 스크롤)
+    visibleResults = $derived.by(() => {
+        const all = this.searchResults;
+        if (all.length === 0) return [];
+
+        const startIdx = Math.max(0, Math.floor(this.scrollTop / this.itemHeight) - 2);
+        const endIdx = Math.min(all.length, Math.ceil(this.containerHeight / this.itemHeight) + startIdx + 3);
+
+        return all.slice(startIdx, endIdx).map((item, i) => ({
+            ...item,
+            uniqueKey: `card-${item.id}-${item.lineIndex}`, 
+            renderTop: (startIdx + i) * this.itemHeight
+        }));
+    });
+
+    get totalHeight() {
+        return this.searchResults.length * this.itemHeight;
+    }
+
+    /* =========================
+      3. SEARCH LOGIC
+    ========================= */
+    startSearch() {
+		const input = this.searchInput.trim();
+		if (!input) {
+			this.searchQuery = "";
+			this.cachedRegex = null;
+			this.colorMap.clear();
+			return;
+		}
+		
+		this.searchQuery = input;
+		this.scrollTop = 0;
+
+		// 1. 색상 매칭용 맵 구성
+		const queries = this.processedQueries;
+		this.colorMap.clear();
+		queries.forEach((q, i) => {
+			this.colorMap.set(q.toLowerCase(), i);
+		});
+
+		// 2. 정규식 생성
+		const pattern = [...queries]
+			.sort((a, b) => b.length - a.length)
+			.map(q => q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
+			.join('|');
+		
+		this.cachedRegex = new RegExp(`(${pattern})`, 'gi');
+	}
+
     searchResults = $derived.by(() => {
         const queries = this.processedQueries;
-        if (queries.length === 0) return [];
+        if (!queries.length) return [];
         
-        let results = [];
-        const allData = Object.entries(this.allFileData);
+        const results = [];
+        // allFiles 대신 로컬 업로드된 files를 직접 참조하거나, 
+        // allFileData derived를 활용하세요.
+        this.files.forEach(file => {
+            if (!file.checked) return; // 체크된 파일만 검색
+            if (!file.lines) return;
 
-        allData.forEach(([fileName, data]) => {
-            if (data.checked === false) return;
-            data.lines.forEach(line => {
-                // 하나라도 포함되면 결과에 추가
-                const hasMatch = queries.some(q => 
-                    line.toLowerCase().includes(q.toLowerCase())
-                );
-                if (hasMatch) {
-                    results.push({ fileName, text: line });
+            file.lines.forEach((line, i) => {
+                if (queries.some(q => line.includes(q))) {
+                    const isAndMatch = queries.every(q => line.includes(q));
+                    results.push({
+                        id: file.name + i, // 고유 키
+                        fileName: file.name,
+                        text: line,
+                        lineIndex: i,
+                        isAndMatch: isAndMatch
+                    });
                 }
             });
         });
-        return results;
+
+        return results.sort((a, b) => b.isAndMatch - a.isAndMatch);
     });
-	
+
+    groupedResults = $derived.by(() => {
+        return this.searchResults.reduce((acc, r) => {
+            if (!acc[r.fileName]) acc[r.fileName] = [];
+            acc[r.fileName].push(r.text);
+            return acc;
+        }, {});
+    });
+
+    /* =========================
+      4. UI HELPERS (Highlight)
+    ========================= */
+    highlightText(fullText, isFinal = false) {
+		if (!fullText || !this.cachedRegex) return fullText;
+
+		const colors = isFinal 
+			? ['#0000FF', '#FF0000', '#2ecc71', '#e67e22'] 
+			: ['#fde047', '#ffcfdf', '#d1fae5', '#e0e7ff'];
+
+		return fullText.replace(this.cachedRegex, (match) => {
+			// match된 단어로 바로 색상 번호(Index) 추출
+			const key = match.toLowerCase();
+			const qIdx = this.colorMap.has(key) ? this.colorMap.get(key) : 0;
+			const color = colors[qIdx % colors.length];
+			
+			if (isFinal) {
+				return `<b style="color: ${color}; font-weight: normal;">${match}</b>`;
+			} else {
+				// mark 태그가 안 보일 경우를 대비해 확실한 인라인 스타일 부여
+				return `<mark style="background-color: ${color} !important; color: black; border-radius: 2px; padding: 0 2px;">${match}</mark>`;
+			}
+		});
+	}
+
+    /* =========================
+      5. FILE & INDEX ACTIONS (기존 로직 유지)
+    ========================= */
+    handleScroll(e) {
+        this.scrollTop = e.target.scrollTop;
+    }
+    
    
     async saveSearchLog(query, results) {
         if (!query.trim() || results.length === 0) return;
@@ -102,14 +202,14 @@ class SearchUI {
     }
 
 	copyToClipboard() {
-        if (!this.summaryElement || this.searchResults.length === 0) return;
-        const range = document.createRange();
-        range.selectNode(summaryElement);
-        window.getSelection().removeAllRanges();
-        window.getSelection().addRange(range);
+        if (!this.summaryElement) return;
+        const r = document.createRange();
+        r.selectNodeContents(this.summaryElement);
+        const sel = window.getSelection();
+        sel.removeAllRanges();
+        sel.addRange(r);
         document.execCommand('copy');
-        alert("📋 보고서 내용이 복사되었습니다!");
-        window.getSelection().removeAllRanges();
+        sel.removeAllRanges();
     }
 
 	async saveAsDocx() {
@@ -192,66 +292,7 @@ class SearchUI {
         }
     }
 
-	// [3. 화면용 & 보고서용 하이라이트 통합]
-
-	// highlightText(fullText, query, isFinal = false) {
-    //     if (!query) return fullText;
-    //     const escapedQuery = query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    //     const regex = new RegExp(`(${escapedQuery})`, 'gi');
-    //     const replacement = isFinal ? `<b style="color: blue;">$1</b>` : `<mark class="hl">$1</mark>`;
-    //     return fullText.replace(regex, replacement);
-    // }
-    highlightText(fullText, queries, isFinal = false) {
-		// 1. 안전장치: 텍스트가 없거나 검색어가 없으면 원본 반환
-		if (!fullText) return "";
-		
-		// 인자로 넘어온 queries가 있으면 그것을 쓰고, 없으면 클래스의 processedQueries를 사용
-		const targetQueries = (queries && queries.length > 0) 
-			? queries.flat() // 혹시 이중 배열로 들어올 경우를 대비해 평탄화
-			: this.processedQueries;
-
-		if (targetQueries.length === 0) return fullText;
-
-		let highlighted = fullText;
-		
-		// 2. 색상 설정 (화면용: 노랑/핑크, 보고서용: 파랑/빨강)
-		const colors = isFinal 
-			? ['#0000FF', '#FF0000', '#2ecc71', '#e67e22'] 
-			: ['#fde047', '#ffcfdf', '#d1fae5', '#e0e7ff'];
-
-		// 3. 중복 하이라이트 방지를 위해 긴 단어부터 정렬
-		const sortedQueries = [...new Set(targetQueries)].sort((a, b) => b.length - a.length);
-
-		sortedQueries.forEach((query) => {
-			if (!query) return;
-			const escapedQuery = query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-			const regex = new RegExp(`(${escapedQuery})`, 'gi');
-			
-			// 원본 쿼리에서의 인덱스를 찾아 색상 매칭
-			const colorIndex = targetQueries.indexOf(query);
-			const color = colors[colorIndex % colors.length];
-			
-			if (isFinal) {
-				// 보고서용: <b> 태그와 글자색
-				highlighted = highlighted.replace(regex, `<b style="color: ${color}; font-weight: bold;">$1</b>`);
-			} else {
-				// 화면용: <mark> 태그와 배경색
-				highlighted = highlighted.replace(regex, `<mark style="background: ${color}; font-weight: bold; border-radius: 2px;">$1</mark>`);
-			}
-		});
-
-		return highlighted;
-	}
-
-    // [4. 그룹화된 결과 (보고서용)]
-    groupedResults = $derived.by(() => {
-        return this.searchResults.reduce((acc, curr) => {
-            if (!acc[curr.fileName]) acc[curr.fileName] = [];
-            acc[curr.fileName].push(curr.text);
-            return acc;
-        }, {});
-    });
-
+	
 	reset() {
 		this.files = [];             // 업로드한 로컬 파일 비우기
 		this.searchQuery = "";       // 검색어 비우기

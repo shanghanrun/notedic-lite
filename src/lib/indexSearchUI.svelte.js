@@ -5,6 +5,7 @@ import { Document, Packer, Paragraph, TextRun } from 'docx';
 import { verifyAdmin } from './pb.svelte.js';
 
 class IndexSearchUI {
+	type = 'server'; // 인덱스화된 것을 다루는 용도
     /* =========================
       1. STATE
     ========================= */
