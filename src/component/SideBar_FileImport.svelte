@@ -107,6 +107,7 @@
         width: 100%; padding: 16px; border-radius: 10px; border: none; 
         font-weight: 800; font-size: 1rem; background: #e2e8f0; color: #94a3b8; 
         cursor: not-allowed; transition: all 0.2s;
+		margin-bottom: 40px;
     }
     .export-btn.active { background: #059669; color: white; cursor: pointer; box-shadow: 0 4px 12px rgba(5, 150, 105, 0.2); }
 </style>
