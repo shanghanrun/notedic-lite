@@ -2,14 +2,50 @@
     import { onMount } from 'svelte';
     import { indexSearchUI } from '$lib/indexSearchUI.svelte.js';
     import { goto } from '$app/navigation';
-    import { fade } from 'svelte/transition';
+    import { fade, slide } from 'svelte/transition';
+    
+    // UI 표시 제어용 로컬 상태
+    let showStatusMonitor = $state(true); 
 
     onMount(async () => {
         indexSearchUI.searchInput = ""; 
         indexSearchUI.searchResults = []; 
         indexSearchUI.summaryElement= null;
         await indexSearchUI.fetchAllFromCollection('hani');
+        await refreshFileList();
     });
+
+     // 목록을 갱신하고 상태를 체크하는 함수
+    async function refreshFileList() {
+        // 1. 데이터를 가져오기 전에 모니터를 즉시 다시 보이게 설정
+        showStatusMonitor = true; 
+        
+        // 2. 검색 결과 및 이전 데이터 초기화 (선택사항)
+        indexSearchUI.allFiles = []; 
+        
+        try {
+            // 3. 데이터 로딩 (비동기)
+            await indexSearchUI.fetchAllFromCollection(indexSearchUI.currentCollection);
+            
+            // 4. 데이터가 들어온 후, 모든 인덱싱이 완료되었는지 확인하여 닫기 예약
+            checkAllDoneAndHide();
+        } catch (error) {
+            console.error("목록 갱신 실패:", error);
+        }
+    }
+
+    function checkAllDoneAndHide() {
+        // 파일이 있고, 모든 파일의 isIndexed가 true인지 확인
+        const allDone = indexSearchUI.allFiles.length > 0 && 
+                        indexSearchUI.allFiles.every(f => f.isIndexed);
+        
+        if (allDone) {
+            // 이미 예약된 타이머가 있을 경우를 대비해 확실히 2초 뒤에 닫기
+            setTimeout(() => {
+                showStatusMonitor = false; 
+            }, 2500);
+        }
+    }
 
     async function handleIndexing(file) {
         const isReindexing = file.isIndexed;
@@ -39,6 +75,25 @@
     </div>
 {/if}
 
+{#if indexSearchUI.isIndexing}
+    <div class="loading-overlay" transition:fade>
+        <div class="loading-card indexing-card">
+            <div class="spinner indexing-spinner"></div>
+            <h3 class="status-label">{indexSearchUI.progressLabel || "인덱싱 준비 중..."}</h3>
+            <p class="status-detail">대용량 파일은 최대 1분 정도 소요될 수 있습니다.</p>
+            
+            <div class="progress-container-main">
+                <div class="progress-bar-fill" style="width: {indexSearchUI.progressValue}%"></div>
+                <span class="percentage-text">{indexSearchUI.progressValue}%</span>
+            </div>
+            
+            {#if indexSearchUI.progressValue > 80}
+                <p class="final-step-msg">서버에 최종 인덱스를 저장하고 있습니다...</p>
+            {/if}
+        </div>
+    </div>
+{/if}
+
 <div class="admin-container">
     <aside class="col sidebar">
         <header><h3>📂 자료 관리</h3></header>
@@ -50,41 +105,50 @@
             {/if}
         </div>
         
-        <div class="file-input-wrapper">
-            <label class="custom-file-btn">
-                📄 로컬 파일 검색 전용 추가 
-                <input type="file" multiple onchange={indexSearchUI.handleFileUpload} />
-            </label>
-        </div>
-
-        <div class="file-box">
-            <h4>파일 상태 모니터</h4>
-            <ul class="file-list">
-                {#each indexSearchUI.allFiles as file}
-                    <li class="file-item-row">
-                        <span class="file-name-text {file.isIndexed ? 'indexed' : 'not-indexed'}">
-                            {file.filename} ({file.lines?.length || 0}줄)
-                        </span>
-                        {#if !file.isIndexed}
-                            <button onclick={() => indexSearchUI.generateAndUploadIndex(file)} class="btn-index-small">인덱스 생성</button>
-                        {:else}
-                            <span class="status-done">✓ 완료</span>
-                        {/if}
-                    </li>
-                {/each}
-            </ul>
-        </div>
+        {#if showStatusMonitor && indexSearchUI.allFiles.length > 0}
+            <div class="file-box" transition:slide={{ duration: 800 }}>
+                <h4 style="display:flex; justify-content:space-between; align-items:center;">
+                    파일 상태 모니터
+                    <button onclick={() => showStatusMonitor = false} style="border:none; background:none; cursor:pointer; font-size:12px; color:#999;">[닫기]</button>
+                </h4>
+                <ul class="file-list">
+                    {#each indexSearchUI.allFiles as file}
+                        <li class="file-item-row">
+                            <span class="file-name-text {file.isIndexed ? 'indexed' : 'not-indexed'}">
+                                {file.filename} ({file.lines?.length || 0}줄)
+                            </span>
+                            {#if !file.isIndexed}
+                                <button onclick={async () => { 
+                                    await indexSearchUI.generateAndUploadIndex(file);
+                                    checkAllDoneAndHide(); // 개별 생성 완료 시에도 체크
+                                }} class="btn-index-small">인덱스 생성</button>
+                            {:else}
+                                <span class="status-done">✓ 완료</span>
+                            {/if}
+                        </li>
+                    {/each}
+                </ul>
+                <hr style="border:0; border-top:1px dashed #eee; margin:10px 0;"/>
+            </div>
+        {/if}
 
         <div class="menu-section">
-            <h3 class="sidebar-title">🌐 서버 서재 (Hani)</h3>
+            <h3 class="sidebar-title">🌐 서버 서재 </h3>
             <div class="collection-selector">
                 <select bind:value={indexSearchUI.currentCollection} class="modern-select">
                     {#each indexSearchUI.availableCollections as col}
                         <option value={col}>{col}</option>
                     {/each}
                 </select>
-                <button class="sync-btn-small" onclick={() => indexSearchUI.fetchAllFromCollection()}>🔄 목록 갱신</button>
+                <button class="sync-btn-small" onclick={() => indexSearchUI.fetchAllFromCollection(indexSearchUI.currentCollection)}>🔄 목록 갱신</button>
             </div>
+        </div>
+
+        <div class="file-input-wrapper">
+            <label class="custom-file-btn">
+                📄 로컬 파일 검색 전용 추가 
+                <input type="file" multiple onchange={indexSearchUI.handleFileUpload} />
+            </label>
         </div>
 
         <div class="indexing-panel">
@@ -228,7 +292,10 @@
     .btn-index-small { background: #a855f7; color: white; border: none; padding: 4px 8px; border-radius: 4px; font-size: 11px; cursor: pointer; }
 
     /* 컬렉션 및 인덱싱 패널 */
-    .modern-select { flex: 1; padding: 6px; border-radius: 4px; border: 1px solid #ddd; }
+    .modern-select { flex: 1; padding: 6px; border-radius: 4px; border: 1px solid #ddd; width:200px; margin-right: 45px }
+    .file-input-wrapper{
+        margin-top: 30px;
+    }
     .sync-btn-small { padding: 6px 10px; font-size: 12px; background: #f3f4f6; border: 1px solid #ccc; border-radius: 4px; cursor: pointer; }
     .indexing-panel { margin-top: 20px; flex: 1; overflow-y: auto; }
     .indexing-item-card { 
@@ -433,5 +500,58 @@
 	}
     .info-badge{
         margin-left: 40px;
+    }
+
+
+
+    /* 인덱싱 전용 카드 스타일 */
+    .indexing-card {
+        border: 2px solid #9333ea; /* 인덱싱 테마색 (보라색) */
+        min-width: 400px;
+    }
+
+    .indexing-spinner {
+        border-top: 5px solid #9333ea;
+    }
+
+    .status-label {
+        color: #4b5563;
+        font-size: 1.5rem;
+        margin-top: 10px;
+    }
+
+    .progress-container-main {
+        width: 100%;
+        height: 24px; /* 좀 더 두껍게 */
+        background: #f3f4f6;
+        border-radius: 12px;
+        position: relative;
+        overflow: hidden;
+        margin-top: 20px;
+        box-shadow: inset 0 2px 4px rgba(0,0,0,0.1);
+    }
+
+    .percentage-text {
+        position: absolute;
+        width: 100%;
+        text-align: center;
+        top: 50%;
+        left: 0;
+        transform: translateY(-50%);
+        font-size: 12px;
+        font-weight: bold;
+        color: #1f2937;
+    }
+
+    .final-step-msg {
+        font-size: 13px;
+        color: #2563eb;
+        margin-top: 10px;
+        animation: flash 1.5s infinite;
+    }
+
+    @keyframes flash {
+        0%, 100% { opacity: 1; }
+        50% { opacity: 0.5; }
     }
 </style>

@@ -159,9 +159,9 @@ export const researchActions = {
     },
 
     // [CREATE] 새로운 연구 파일 추가
-    async uploadFile(formData) {
+    async uploadFile(formData, targetCollection='hani') {
         // 현재 UI에서 선택된 컬렉션 이름 (예: 'hani')
-    	const collectionName = researchState.currentCollection || 'hani';
+    	const collectionName = targetCollection || researchState.currentCollection || 'hani';
 
         try {
             const record = await pb.collection(collectionName).create(formData);
