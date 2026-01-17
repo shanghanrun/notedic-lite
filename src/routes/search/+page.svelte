@@ -19,6 +19,9 @@ async function loadData() {
         searchUI.searchQuery = queryText || "";
         const targetText = localStorage.getItem("shared_pendingText");
         
+        console.log('query : ', queryText)
+        console.log('shared_pendingText : ', targetText)
+
         if (targetText) {
             console.log("✅ 드디어 데이터를 찾았습니다! (시도 횟수:", retryCount + 1, ")");
             const lines = targetText.split('\n').filter(l => l.trim() !== "");
@@ -50,7 +53,9 @@ onMount(()=>{
 
         // 데이터를 기다렸다가 로드에 성공하면 검색 시작!
         loadData().then((success) => {
+            
             if (success && searchUI.files.length > 0) {
+                console.log('성공해서 검색 시작!')
                 searchUI.startSearch();
             }
         });

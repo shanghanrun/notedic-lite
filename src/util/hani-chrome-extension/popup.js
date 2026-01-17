@@ -48,10 +48,16 @@ function doSearch() {
 
       // 5. 텍스트 저장 후 검색 페이지 열기
         // (단축키는 검색어가 없으니 빈 검색어로 페이지부터 띄웁니다)
-        chrome.storage.local.set({ "searchText": query })
-        chrome.storage.local.set({ "pendingText": pageText }, () => {
-          chrome.tabs.create({ url: `https://hani.chois.cloud/search?${query}` });
-        });
+        
+        // chrome.storage.local.set({ "searchText": query }, () => {
+        //   chrome.tabs.create({ url: `https://hani.chois.cloud/search?${query}` });
+        // });
+        // chrome.storage.local.set({ "pendingText": pageText }, () => {
+        //   chrome.tabs.create({ url: `https://hani.chois.cloud/search?${query}` });
+        // });
+        localStorage.setItem("query", query)
+        localStorage.setItem("shared_pendingText", pageText )
+        chrome.tabs.create({ url: `https://hani.chois.cloud/search?${query}` });
     });
   });
 }
