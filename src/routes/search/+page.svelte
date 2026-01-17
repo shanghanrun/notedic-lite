@@ -14,63 +14,55 @@ let isLoading = $state(false);
 async function loadData() {
     isLoading = true;
     let retryCount = 0;
-    const maxRetries = 10; // 👈 넉넉하게 3초 정도(0.3s * 10) 기다려주는 게 안전합니다.
+    const maxRetries = 10;
 
     while (retryCount < maxRetries) {
-        const targetText = localStorage.getItem("shared_pendingText");
-        console.log('텍스트 테이터: ', targetText )
+        // 1. 먼저 localStorage 확인
+        let targetText = localStorage.getItem("shared_pendingText");
         
+        // 2. 만약 localStorage가 비어있다면? 클립보드에서 직접 긁어오기 시도!
+        if (!targetText || targetText.trim() === "") {
+            try {
+                // 브라우저 팝업이 활성화된 상태에서만 작동합니다.
+                targetText = await navigator.clipboard.readText();
+                if (targetText && targetText.trim() !== "") {
+                    console.log("📋 [클립보드 수령] 복사된 텍스트를 발견했습니다!");
+                }
+            } catch (err) {
+                // 권한 거부 시 조용히 넘어갑니다 (사용자가 복사 안 했을 수도 있으니까요)
+                console.warn("클립보드 접근 권한이 없거나 비어있습니다.");
+            }
+        }
+
+        // 최종적으로 데이터가 확보되었다면 처리 시작!
         if (targetText && targetText.trim() !== "") {
-            console.log("✅ [데이터 수령] 시도 횟수:", retryCount + 1);
+            console.log("✅ [데이터 로드 성공] 시도 횟수:", retryCount + 1);
             
             const lines = targetText.split('\n').filter(l => l.trim() !== "");
             
-            // Svelte 5 룬을 사용하신다면 searchUI가 상태(state)일 텐데, 
-            // 아래와 같이 명확하게 할당해 줍니다.
+            // Svelte 5 룬 할당 (반응성 유지)
             searchUI.files = [{ 
                 name: "웹페이지 추출 원문", 
                 lines: lines, 
                 checked: true 
             }];
             
+            // 사용한 데이터 정리 (localStorage만 비워줌)
+            localStorage.removeItem("shared_pendingText");
             
             isLoading = false;
             return true;
         }
 
-        console.log("⏳ 데이터 배달 대기 중... 재시도:", retryCount + 1);
+        console.log("⏳ 데이터 대기 중... 재시도:", retryCount + 1);
         retryCount++;
         await new Promise(resolve => setTimeout(resolve, 300));
     }
 
-    console.warn("⚠️ 데이터 로드 실패 (일반 검색 모드로 전환)");
+    console.warn("⚠️ 모든 수단 실패 (일반 검색 모드로 전환)");
     isLoading = false;
-    localStorage.removeItem("shared_pendingText"); // 사용 후 삭제 (너무 일찍 삭제 하지 않는다.)
     return false;
 }
-
-onMount(() => {
-    // URL에서 쿼리 추출
-    const rawQuery = $page.url.searchParams.get('q') || "";
-    
-    if (rawQuery) {
-        searchUI.searchQuery = decodeURIComponent(rawQuery);
-        // 입력창에도 동기화 해야 되는데 입력창의 value가 searchUI.searchQuery와 bind되어서
-        // 자동으로 동기화 된다.
-        // <input bind:value={searchUI.searchQuery} ...>
-        
-        console.log('🔍 검색 시작:', searchUI.searchQuery);
-
-        // 1. 데이터를 먼저 기다리고
-        loadData().then((success) => {
-            // 2. 성공했거나, 혹은 데이터가 없어도 검색은 실행 (검색어는 있으니까요!)
-            if (searchUI.searchQuery) {
-                console.log(success ? '✅ 원문 포함 검색 시작!' : 'ℹ️ 일반 사전 검색 시작!');
-                searchUI.startSearch();
-            }
-        });
-    }
-});
 </script>
 
 <div class="admin-container">
