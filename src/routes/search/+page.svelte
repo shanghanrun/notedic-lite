@@ -2,117 +2,74 @@
 	import SideBar_FileImport from './../../component/SideBar_FileImport.svelte';
   import { searchUI } from '$lib/searchUI.svelte';
   import { page } from '$app/stores';
-  import SearchHeader from '../../component/SearchHeader.svelte';
+  import SearchHeader from '../../component/AdminSearchHeader.svelte';
   import SearchResultView from '../../component/SearchResultView.svelte';
   import {onMount} from 'svelte'
+  import UserSearchHeader from '../../component/UserSearchHeader.svelte';
 
-  let isLoading = $state(false); // Svelte 5 룬 사용
+  // src/routes/search/+page.svelte
 
+let isLoading = $state(false);
 
 async function loadData() {
     isLoading = true;
     let retryCount = 0;
-    const maxRetries = 4; // 0.3초 간격으로 최대 3초간 기다림
+    const maxRetries = 10; // 👈 넉넉하게 3초 정도(0.3s * 10) 기다려주는 게 안전합니다.
 
     while (retryCount < maxRetries) {
-        const queryText = localStorage.getItem("query");
-        searchUI.searchQuery = queryText || "";
         const targetText = localStorage.getItem("shared_pendingText");
-        
-        console.log('query : ', queryText)
-        console.log('shared_pendingText : ', targetText)
 
-        if (targetText) {
-            console.log("✅ 드디어 데이터를 찾았습니다! (시도 횟수:", retryCount + 1, ")");
-            const lines = targetText.split('\n').filter(l => l.trim() !== "");
-            searchUI.files = [{ name: "웹페이지 추출 원문", lines: lines, checked: true }];
+        if (targetText && targetText.trim() !== "") {
+            console.log("✅ [데이터 수령] 시도 횟수:", retryCount + 1);
             
-            // localStorage.removeItem("shared_pendingText"); // 사용 후 삭제
-            // 위의 코드는 로컬스토리지로 들어온 것이 확인되면 주석해제한다.
+            const lines = targetText.split('\n').filter(l => l.trim() !== "");
+            
+            // Svelte 5 룬을 사용하신다면 searchUI가 상태(state)일 텐데, 
+            // 아래와 같이 명확하게 할당해 줍니다.
+            searchUI.files = [{ 
+                name: "웹페이지 추출 원문", 
+                lines: lines, 
+                checked: true 
+            }];
+            
             
             isLoading = false;
-            return true; // 성공 반환
+            return true;
         }
 
-        console.log("⏳ 데이터 대기 중... 재시도:", retryCount + 1);
+        console.log("⏳ 데이터 배달 대기 중... 재시도:", retryCount + 1);
         retryCount++;
-        await new Promise(resolve => setTimeout(resolve, 300)); // 0.3초 대기
+        await new Promise(resolve => setTimeout(resolve, 300));
     }
 
-    console.error("❌ 데이터 로드 최종 실패");
+    console.warn("⚠️ 데이터 로드 실패 (일반 검색 모드로 전환)");
     isLoading = false;
-    return false; // 실패 반환
+    localStorage.removeItem("shared_pendingText"); // 사용 후 삭제 (너무 일찍 삭제 하지 않는다.)
+    return false;
 }
 
-onMount(()=>{
-  // const rawQuery = $page.url.searchParams.get('q') || "";
-    // if (rawQuery) {
-    //     searchUI.searchQuery = decodeURIComponent(rawQuery);
-    //     const searchTerm = searchUI.searchQuery
-    //     console.log('searchQuery : ', searchTerm)
+onMount(() => {
+    // URL에서 쿼리 추출
+    const rawQuery = $page.url.searchParams.get('q') || "";
+    
+    if (rawQuery) {
+        searchUI.searchQuery = decodeURIComponent(rawQuery);
+        // 입력창에도 동기화 해야 되는데 입력창의 value가 searchUI.searchQuery와 bind되어서
+        // 자동으로 동기화 된다.
+        // <input bind:value={searchUI.searchQuery} ...>
+        
+        console.log('🔍 검색 시작:', searchUI.searchQuery);
 
-        // 데이터를 기다렸다가 로드에 성공하면 검색 시작!
+        // 1. 데이터를 먼저 기다리고
         loadData().then((success) => {
-            
-            if (success && searchUI.files.length > 0) {
-                console.log('성공해서 검색 시작!')
+            // 2. 성공했거나, 혹은 데이터가 없어도 검색은 실행 (검색어는 있으니까요!)
+            if (searchUI.searchQuery) {
+                console.log(success ? '✅ 원문 포함 검색 시작!' : 'ℹ️ 일반 사전 검색 시작!');
                 searchUI.startSearch();
             }
         });
-    // }
-})
-// $effect(() => {
-//     const rawQuery = $page.url.searchParams.get('q') || "";
-//     if (rawQuery) {
-//         searchUI.searchQuery = decodeURIComponent(rawQuery);
-//         // searchUI.searchInput = searchUI.searchQuery;
-
-//         // 데이터를 기다렸다가 로드에 성공하면 검색 시작!
-//         loadData().then((success) => {
-//             if (success && searchUI.files.length > 0) {
-//                 searchUI.startSearch();
-//             }
-//         });
-//     }
-// });
-
-//   async function runSearchWorkflow(rawQuery, rawBody) {
-//     isLoading = true;
-//     searchUI.searchQuery = decodeURIComponent(rawQuery);
-
-//     if (rawBody) {
-//       // [방법 A] URL 파라미터에 데이터가 실려온 경우 (가장 빠름)
-//       console.log("URL을 통해 데이터를 로드합니다.");
-//       processTextToFiles(decodeURIComponent(rawBody));
-//     } else {
-//       // [방법 B] URL이 비었거나 너무 길어 실패한 경우 스토리지 확인
-//       console.log("URL 데이터가 없어 스토리지를 확인합니다.");
-//       await loadFromStorage();
-//     }
-
-//     searchUI.startSearch();
-//     isLoading = false;
-//   }
-
-//   // 텍스트를 searchUI 형식에 맞게 변환하는 공통 함수
-//   function processTextToFiles(text) {
-//     if (!text) return;
-//     const lines = text.split('\n').filter(l => l.trim() !== "");
-//     searchUI.files = [{ name: "추출 원문", lines: lines, checked: true }];
-//   }
-
-//   // 확장 프로그램이 content_script를 통해 넣어준 스토리지 읽기
-//   async function loadFromStorage() {
-//     // content_script가 localStorage에 동기화해줬다고 가정
-//     const storageText = localStorage.getItem("shared_pendingText");
-//     if (storageText) {
-//       processTextToFiles(storageText);
-//       // 사용 후 깔끔하게 비워주기 (선택)
-//       // localStorage.removeItem("shared_pendingText");
-//     } else {
-//       console.warn("모든 방법으로 데이터 로드 실패");
-//     }
-//   }
+    }
+});
 </script>
 
 <div class="admin-container">
@@ -121,7 +78,7 @@ onMount(()=>{
     <SideBar_FileImport />
 
     <main class="col main-content">
-        <SearchHeader item={searchUI} />
+        <UserSearchHeader item={searchUI} />
         <SearchResultView item={searchUI}/>
     </main>
 </div>

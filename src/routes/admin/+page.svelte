@@ -4,9 +4,9 @@
     
     // 분리한 컴포넌트들 임포트
     import SideBar from '../../component/SideBar.svelte';
-    import SearchHeader from '../../component/SearchHeader.svelte';
     import SearchResultView from '../../component/SearchResultView.svelte';
     import LoadingOverlay from '../../component/LoadingOverlay.svelte';
+  import AdminSearchHeader from '../../component/AdminSearchHeader.svelte';
 
 	let showStatusMonitor = $state(true);
 
@@ -29,7 +29,7 @@
     <SideBar bind:showStatusMonitor />
 
     <main class="col main-content">
-        <SearchHeader item={indexSearchUI}/>
+        <AdminSearchHeader item={indexSearchUI}/>
         <SearchResultView item={indexSearchUI}/>
     </main>
 </div>

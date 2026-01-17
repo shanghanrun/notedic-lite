@@ -1,11 +1,9 @@
 <script>
-import { goto } from '$app/navigation';
-import { verifyAdmin } from '$lib/pb.svelte';
 import { searchUI } from '$lib/searchUI.svelte';
 import { onMount } from 'svelte'
-  import SearchHeader from '../component/SearchHeader.svelte';
   import SearchResultView from '../component/SearchResultView.svelte';
   import SideBar_FileImport from '../component/SideBar_FileImport.svelte';
+  import UserSearchHeader from '../component/UserSearchHeader.svelte';
 
 onMount(() => {
         // 페이지에 들어오자마자 이전 상태 초기화
@@ -21,7 +19,7 @@ onMount(() => {
     <SideBar_FileImport />
 
     <main class="col main-content">
-        <SearchHeader item={searchUI} />
+        <UserSearchHeader item={searchUI} />
         <SearchResultView item={searchUI}/>
     </main>
 </div>

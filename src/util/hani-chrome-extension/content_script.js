@@ -1,8 +1,8 @@
-// // content_script.js
-// chrome.storage.local.get(["pendingText"], (result) => {
-//   if (result.pendingText) {
-//     // 웹페이지의 localStorage에 데이터를 복사해줍니다.
-//     localStorage.setItem("shared_pendingText", result.pendingText);
-//     console.log("확장 프로그램 데이터가 웹페이지로 동기화되었습니다.");
-//   }
-// });
+// 금고에서 꺼내서 주머니에 넣어주기
+chrome.storage.local.get("shared_pendingText", (data) => {
+  if (data.shared_pendingText) {
+    localStorage.setItem("shared_pendingText", data.shared_pendingText);
+    // 배달 완료 후 금고는 비워주는 센스!
+    chrome.storage.local.remove("shared_pendingText");
+  }
+});
