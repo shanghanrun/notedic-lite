@@ -12,6 +12,8 @@ class IndexSearchUI {
     files = $state([]);                  
     allFiles = $state([]);  
     searchInput = $state(""); 
+    // 검색어를 입력하는 족족 검색되지 않게 하기 위해 searchInput을 따로 둔다.
+    
     searchQuery = $state(""); 
     summaryElement = $state(null);
 	availableCollections =$state(['hani', 'hani2'])

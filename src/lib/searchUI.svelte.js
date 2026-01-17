@@ -9,6 +9,9 @@ class SearchUI {
 	files = $state([]) // 각 파일은 { name, lines, checked: true } 형태
     allFiles = $state([]);  
     searchQuery = $state("");
+    //입력하는 족족 검색쿼리가 반영되도록 함.
+    //만약 입력하는 족족 검색쿼리가 변화되어 검색이 되지 않도록 하려면, indexSearchUI처럼 searchInput을 따로 두어야 된다.
+    
     logTimer = null;
 	summaryElement = $state(null)
     selectedFiles = $state(new Set()); 
@@ -54,7 +57,7 @@ class SearchUI {
       3. SEARCH LOGIC
     ========================= */
     startSearch() {
-		const input = this.searchInput.trim();
+		const input = this.searchQuery.trim();
 		if (!input) {
 			this.searchQuery = "";
 			this.cachedRegex = null;
@@ -62,7 +65,7 @@ class SearchUI {
 			return;
 		}
 		
-		this.searchQuery = input;
+		// this.searchQuery = input;
 		this.scrollTop = 0;
 
 		// 1. 색상 매칭용 맵 구성
