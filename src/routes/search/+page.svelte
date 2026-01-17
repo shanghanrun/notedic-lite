@@ -18,7 +18,8 @@ async function loadData() {
 
     while (retryCount < maxRetries) {
         const targetText = localStorage.getItem("shared_pendingText");
-
+        console.log('텍스트 테이터: ', targetText )
+        
         if (targetText && targetText.trim() !== "") {
             console.log("✅ [데이터 수령] 시도 횟수:", retryCount + 1);
             
