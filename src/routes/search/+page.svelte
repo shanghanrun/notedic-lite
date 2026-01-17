@@ -7,53 +7,79 @@
   
   let isLoading = $state(false); // Svelte 5 룬 사용
 
-  // 1. URL 변경 감지 및 검색 엔진 가동
-  $effect(() => {
-    const rawQuery = $page.url.searchParams.get('q') || "";
-    const rawBody = $page.url.searchParams.get('body') || ""; // 1순위: URL 데이터
 
-    if (rawQuery) {
-      runSearchWorkflow(rawQuery, rawBody);
-    }
-  });
-
-  async function runSearchWorkflow(rawQuery, rawBody) {
+async function loadData() {
     isLoading = true;
-    searchUI.searchQuery = decodeURIComponent(rawQuery);
-
-    if (rawBody) {
-      // [방법 A] URL 파라미터에 데이터가 실려온 경우 (가장 빠름)
-      console.log("URL을 통해 데이터를 로드합니다.");
-      processTextToFiles(decodeURIComponent(rawBody));
+    
+    // content_script가 넣어준 데이터 확인
+    const targetText = localStorage.getItem("shared_pendingText");
+    
+    if (targetText) {
+        const lines = targetText.split('\n').filter(l => l.trim() !== "");
+        searchUI.files = [{ name: "웹페이지 추출 원문", lines: lines, checked: true }];
+        
+        // 중요: 데이터를 한번 썼으면 비워줍니다 (다음에 꼬이지 않게)
+        localStorage.removeItem("shared_pendingText");
+        console.log("원문 데이터를 성공적으로 로드했습니다.");
     } else {
-      // [방법 B] URL이 비었거나 너무 길어 실패한 경우 스토리지 확인
-      console.log("URL 데이터가 없어 스토리지를 확인합니다.");
-      await loadFromStorage();
+        console.log("로드할 원문 데이터가 없습니다.");
     }
-
-    searchUI.startSearch();
+    
     isLoading = false;
-  }
+}
 
-  // 텍스트를 searchUI 형식에 맞게 변환하는 공통 함수
-  function processTextToFiles(text) {
-    if (!text) return;
-    const lines = text.split('\n').filter(l => l.trim() !== "");
-    searchUI.files = [{ name: "추출 원문", lines: lines, checked: true }];
-  }
+$effect(() => {
+    const rawQuery = $page.url.searchParams.get('q') || "";
+    if (rawQuery) {
+        searchUI.searchQuery = decodeURIComponent(rawQuery);
+        // searchUI.searchInput = searchUI.searchQuery;
 
-  // 확장 프로그램이 content_script를 통해 넣어준 스토리지 읽기
-  async function loadFromStorage() {
-    // content_script가 localStorage에 동기화해줬다고 가정
-    const storageText = localStorage.getItem("shared_pendingText");
-    if (storageText) {
-      processTextToFiles(storageText);
-      // 사용 후 깔끔하게 비워주기 (선택)
-      // localStorage.removeItem("shared_pendingText");
-    } else {
-      console.warn("모든 방법으로 데이터 로드 실패");
+        // 데이터를 가져오고 검색 시작
+        loadData().then(() => {
+            if (searchUI.files.length > 0) {
+                searchUI.startSearch();
+            }
+        });
     }
-  }
+});
+
+//   async function runSearchWorkflow(rawQuery, rawBody) {
+//     isLoading = true;
+//     searchUI.searchQuery = decodeURIComponent(rawQuery);
+
+//     if (rawBody) {
+//       // [방법 A] URL 파라미터에 데이터가 실려온 경우 (가장 빠름)
+//       console.log("URL을 통해 데이터를 로드합니다.");
+//       processTextToFiles(decodeURIComponent(rawBody));
+//     } else {
+//       // [방법 B] URL이 비었거나 너무 길어 실패한 경우 스토리지 확인
+//       console.log("URL 데이터가 없어 스토리지를 확인합니다.");
+//       await loadFromStorage();
+//     }
+
+//     searchUI.startSearch();
+//     isLoading = false;
+//   }
+
+//   // 텍스트를 searchUI 형식에 맞게 변환하는 공통 함수
+//   function processTextToFiles(text) {
+//     if (!text) return;
+//     const lines = text.split('\n').filter(l => l.trim() !== "");
+//     searchUI.files = [{ name: "추출 원문", lines: lines, checked: true }];
+//   }
+
+//   // 확장 프로그램이 content_script를 통해 넣어준 스토리지 읽기
+//   async function loadFromStorage() {
+//     // content_script가 localStorage에 동기화해줬다고 가정
+//     const storageText = localStorage.getItem("shared_pendingText");
+//     if (storageText) {
+//       processTextToFiles(storageText);
+//       // 사용 후 깔끔하게 비워주기 (선택)
+//       // localStorage.removeItem("shared_pendingText");
+//     } else {
+//       console.warn("모든 방법으로 데이터 로드 실패");
+//     }
+//   }
 </script>
 
 <div class="admin-container">
