@@ -15,6 +15,8 @@ async function loadData() {
     const maxRetries = 4; // 0.3초 간격으로 최대 3초간 기다림
 
     while (retryCount < maxRetries) {
+        const queryText = localStorage.getItem("query");
+        searchUI.searchQuery = queryText || "";
         const targetText = localStorage.getItem("shared_pendingText");
         
         if (targetText) {
@@ -40,11 +42,11 @@ async function loadData() {
 }
 
 onMount(()=>{
-  const rawQuery = $page.url.searchParams.get('q') || "";
-    if (rawQuery) {
-        searchUI.searchQuery = decodeURIComponent(rawQuery);
-        const searchTerm = searchUI.searchQuery
-        console.log('searchQuery : ', searchTerm)
+  // const rawQuery = $page.url.searchParams.get('q') || "";
+    // if (rawQuery) {
+    //     searchUI.searchQuery = decodeURIComponent(rawQuery);
+    //     const searchTerm = searchUI.searchQuery
+    //     console.log('searchQuery : ', searchTerm)
 
         // 데이터를 기다렸다가 로드에 성공하면 검색 시작!
         loadData().then((success) => {
@@ -52,7 +54,7 @@ onMount(()=>{
                 searchUI.startSearch();
             }
         });
-    }
+    // }
 })
 // $effect(() => {
 //     const rawQuery = $page.url.searchParams.get('q') || "";
