@@ -10,22 +10,30 @@
 
 async function loadData() {
     isLoading = true;
-    
-    // content_script가 넣어준 데이터 확인
-    const targetText = localStorage.getItem("shared_pendingText");
-    
-    if (targetText) {
-        const lines = targetText.split('\n').filter(l => l.trim() !== "");
-        searchUI.files = [{ name: "웹페이지 추출 원문", lines: lines, checked: true }];
+    let retryCount = 0;
+    const maxRetries = 10; // 0.3초 간격으로 최대 3초간 기다림
+
+    while (retryCount < maxRetries) {
+        const targetText = localStorage.getItem("shared_pendingText");
         
-        // 중요: 데이터를 한번 썼으면 비워줍니다 (다음에 꼬이지 않게)
-        localStorage.removeItem("shared_pendingText");
-        console.log("원문 데이터를 성공적으로 로드했습니다.");
-    } else {
-        console.log("로드할 원문 데이터가 없습니다.");
+        if (targetText) {
+            console.log("✅ 드디어 데이터를 찾았습니다! (시도 횟수:", retryCount + 1, ")");
+            const lines = targetText.split('\n').filter(l => l.trim() !== "");
+            searchUI.files = [{ name: "웹페이지 추출 원문", lines: lines, checked: true }];
+            
+            localStorage.removeItem("shared_pendingText"); // 사용 후 삭제
+            isLoading = false;
+            return true; // 성공 반환
+        }
+
+        console.log("⏳ 데이터 대기 중... 재시도:", retryCount + 1);
+        retryCount++;
+        await new Promise(resolve => setTimeout(resolve, 300)); // 0.3초 대기
     }
-    
+
+    console.error("❌ 데이터 로드 최종 실패");
     isLoading = false;
+    return false; // 실패 반환
 }
 
 $effect(() => {
@@ -34,9 +42,9 @@ $effect(() => {
         searchUI.searchQuery = decodeURIComponent(rawQuery);
         // searchUI.searchInput = searchUI.searchQuery;
 
-        // 데이터를 가져오고 검색 시작
-        loadData().then(() => {
-            if (searchUI.files.length > 0) {
+        // 데이터를 기다렸다가 로드에 성공하면 검색 시작!
+        loadData().then((success) => {
+            if (success && searchUI.files.length > 0) {
                 searchUI.startSearch();
             }
         });
