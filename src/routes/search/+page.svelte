@@ -4,14 +4,15 @@
   import { page } from '$app/stores';
   import SearchHeader from '../../component/SearchHeader.svelte';
   import SearchResultView from '../../component/SearchResultView.svelte';
-  
+  import {onMount} from 'svelte'
+
   let isLoading = $state(false); // Svelte 5 룬 사용
 
 
 async function loadData() {
     isLoading = true;
     let retryCount = 0;
-    const maxRetries = 10; // 0.3초 간격으로 최대 3초간 기다림
+    const maxRetries = 4; // 0.3초 간격으로 최대 3초간 기다림
 
     while (retryCount < maxRetries) {
         const targetText = localStorage.getItem("shared_pendingText");
@@ -21,7 +22,9 @@ async function loadData() {
             const lines = targetText.split('\n').filter(l => l.trim() !== "");
             searchUI.files = [{ name: "웹페이지 추출 원문", lines: lines, checked: true }];
             
-            localStorage.removeItem("shared_pendingText"); // 사용 후 삭제
+            // localStorage.removeItem("shared_pendingText"); // 사용 후 삭제
+            // 위의 코드는 로컬스토리지로 들어온 것이 확인되면 주석해제한다.
+            
             isLoading = false;
             return true; // 성공 반환
         }
@@ -36,11 +39,12 @@ async function loadData() {
     return false; // 실패 반환
 }
 
-$effect(() => {
-    const rawQuery = $page.url.searchParams.get('q') || "";
+onMount(()=>{
+  const rawQuery = $page.url.searchParams.get('q') || "";
     if (rawQuery) {
         searchUI.searchQuery = decodeURIComponent(rawQuery);
-        // searchUI.searchInput = searchUI.searchQuery;
+        const searchTerm = searchUI.searchQuery
+        console.log('searchQuery : ', searchTerm)
 
         // 데이터를 기다렸다가 로드에 성공하면 검색 시작!
         loadData().then((success) => {
@@ -49,7 +53,21 @@ $effect(() => {
             }
         });
     }
-});
+})
+// $effect(() => {
+//     const rawQuery = $page.url.searchParams.get('q') || "";
+//     if (rawQuery) {
+//         searchUI.searchQuery = decodeURIComponent(rawQuery);
+//         // searchUI.searchInput = searchUI.searchQuery;
+
+//         // 데이터를 기다렸다가 로드에 성공하면 검색 시작!
+//         loadData().then((success) => {
+//             if (success && searchUI.files.length > 0) {
+//                 searchUI.startSearch();
+//             }
+//         });
+//     }
+// });
 
 //   async function runSearchWorkflow(rawQuery, rawBody) {
 //     isLoading = true;
