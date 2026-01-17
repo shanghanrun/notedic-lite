@@ -9,68 +9,49 @@
 
   // 1. URL 변경 감지 및 검색 엔진 가동
   $effect(() => {
-    const rawQuery = $page.url.searchParams.get('q') || "";    
-    
-    // 비동기 프로세스 실행
-    runSearchWorkflow(rawQuery);
+    const rawQuery = $page.url.searchParams.get('q') || "";
+    const rawBody = $page.url.searchParams.get('body') || ""; // 1순위: URL 데이터
+
+    if (rawQuery) {
+      runSearchWorkflow(rawQuery, rawBody);
+    }
   });
 
-  async function runSearchWorkflow(rawQuery) {
-    // [순서 1] 쿼리 디코딩 및 설정
-    const decodedQuery = decodeURIComponent(rawQuery);
-    searchUI.searchQuery = decodedQuery; 
+  async function runSearchWorkflow(rawQuery, rawBody) {
+    isLoading = true;
+    searchUI.searchQuery = decodeURIComponent(rawQuery);
 
-    // [순서 2] localStorage(chrome 금고)에서 데이터 로드
-    await loadData();
+    if (rawBody) {
+      // [방법 A] URL 파라미터에 데이터가 실려온 경우 (가장 빠름)
+      console.log("URL을 통해 데이터를 로드합니다.");
+      processTextToFiles(decodeURIComponent(rawBody));
+    } else {
+      // [방법 B] URL이 비었거나 너무 길어 실패한 경우 스토리지 확인
+      console.log("URL 데이터가 없어 스토리지를 확인합니다.");
+      await loadFromStorage();
+    }
 
-    // [순서 3] 로드된 데이터를 바탕으로 정규식 및 하이라이트 엔진 가동
-    searchUI.startSearch();      
+    searchUI.startSearch();
+    isLoading = false;
   }
 
-  async function loadData() {
-    isLoading = true;
-    
-    try {
-      // 팝업에서 "pendingText"라는 이름으로 저장했던 데이터를 가져옵니다.
-      // 확장 프로그램 환경에서는 chrome.storage를, 일반 브라우저 테스트는 localStorage를 참조
-      let targetText = "";
+  // 텍스트를 searchUI 형식에 맞게 변환하는 공통 함수
+  function processTextToFiles(text) {
+    if (!text) return;
+    const lines = text.split('\n').filter(l => l.trim() !== "");
+    searchUI.files = [{ name: "추출 원문", lines: lines, checked: true }];
+  }
 
-      if (typeof chrome !== 'undefined' && chrome.storage) {
-        // 확장 프로그램 스토리지 사용 (Promise로 래핑하여 await 처리)
-        const result = await new Promise((resolve) => {
-          chrome.storage.local.get(["pendingText"], (res) => resolve(res));
-        });
-        targetText = result.pendingText || "";
-      } else {
-        // 개발/테스트용 로컬 스토리지 폴백
-        targetText = localStorage.getItem("pendingText") || "";
-      }
-
-      if (!targetText) {
-        console.warn("검색할 원문 데이터가 없습니다.");
-        searchUI.files = [];
-        return;
-      }
-
-      // 텍스트를 줄 단위로 분리
-      const lines = targetText.split('\n').filter(l => l.trim() !== "");
-
-      // searchUI 엔진에 파일 형태로 주입
-      searchUI.files = [
-        {
-          name: "웹페이지 추출 원문",
-          lines: lines,
-          checked: true
-        }
-      ];
-
-      // (선택 사항) 사용한 데이터는 금고에서 비워줍니다.
-      // if (typeof chrome !== 'undefined') chrome.storage.local.remove("pendingText");
-
-    } catch (err) {
-      console.error("데이터 로드 실패:", err);
-    } finally {
-      isLoading = false;
+  // 확장 프로그램이 content_script를 통해 넣어준 스토리지 읽기
+  async function loadFromStorage() {
+    // content_script가 localStorage에 동기화해줬다고 가정
+    const storageText = localStorage.getItem("shared_pendingText");
+    if (storageText) {
+      processTextToFiles(storageText);
+      // 사용 후 깔끔하게 비워주기 (선택)
+      // localStorage.removeItem("shared_pendingText");
+    } else {
+      console.warn("모든 방법으로 데이터 로드 실패");
     }
   }
 </script>
