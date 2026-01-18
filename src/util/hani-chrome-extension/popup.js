@@ -5,15 +5,15 @@ const state = {
     colors: ['#fde047', '#ffcfdf', '#d1fae5', '#e0e7ff']
 };
 
-function getSmartQuery(q) {
-    if (!q) return "";
-    q = q.trim();
-    const len = q.length;
-    if (len === 4) return q.substring(0, 2) + " " + q.substring(2, 4);
-    if (len === 5) return q.substring(0, 3) + " " + q.substring(3, 5);
-    if (len === 6) return q.substring(0, 3) + " " + q.substring(3, 6);
-    return q;
-}
+// function getSmartQuery(q) {
+//     if (!q) return "";
+//     q = q.trim();
+//     const len = q.length;
+//     if (len === 4) return q.substring(0, 2) + " " + q.substring(2, 4);
+//     if (len === 5) return q.substring(0, 3) + " " + q.substring(3, 5);
+//     if (len === 6) return q.substring(0, 3) + " " + q.substring(3, 6);
+//     return q;
+// }
 
 function prepareSearch(query) {
     state.searchQuery = query;
@@ -42,7 +42,7 @@ window.onload = function () {
     clipBtn.onclick = async function () {
         try {
             const clipText = await navigator.clipboard.readText();
-            if (input.value) input.value = getSmartQuery(input.value);
+            // if (input.value) input.value = getSmartQuery(input.value);
             const finalQuery = input.value.trim();
 
             if (!finalQuery || !clipText) {
