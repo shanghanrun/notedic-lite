@@ -5,10 +5,28 @@
 	<meta charset="UTF-8">
 	<style>
 		body {
-			width: 300px;
-			padding: 15px;
-			font-family: sans-serif;
-			background: #f8f9fa;
+			/* 형님의 비기: 기본 400px 시작 */
+			width: 400px;
+			min-height: 250px;
+			margin: 0;
+			/* 좌우 패딩을 15px에서 유지하되, 우측만 20px로 살짝 더 주어 스크롤바 간격 확보 */
+        	padding: 15px 20px 15px 15px; 
+			font-family: 'Malgun Gothic', sans-serif;
+			transition: width 0.3s ease-in-out;
+			overflow-x: hidden;
+			display: flex;
+			flex-direction: column;
+			align-items: stretch;
+			/* 왼쪽부터 꽉 차게 */
+		}
+		.header-section {
+			margin-right: 5px; /* 우측에 미세한 마진 추가 */
+		}
+
+		.search-container {
+			display: flex;
+			gap: 5px;
+			margin-right: 5px; /* 검색창 오른쪽 끝에도 마진 추가 */
 		}
 
 		h3 {
@@ -41,31 +59,45 @@
 			border: none;
 			border-radius: 4px;
 			cursor: pointer;
+			white-space: nowrap;
 		}
 
 		button:hover {
 			background: #34495e;
 		}
 
-		.footer {
-			margin-top: 12px;
-			font-size: 11px;
-			color: #7f8c8d;
-			text-align: center;
+		.footer-link {
+			margin-top: 10px;
+			font-size: 12px;
 		}
+
+		#resultArea {
+			margin-top: 15px;
+			width: 100%;
+		}
+
+		/* 결과 영역 가로 꽉 차게 */
 	</style>
 </head>
 
 <body>
-	<h3>한의학 퀵 검색</h3>
-	<div class="search-container">
-		<input type="text" id="searchInput" placeholder="검색어 입력 (예: 백호)" autofocus />
-		<button id="searchBtn">검색</button>
+	<div class="header-section">
+		<h3>한의학 퀵 검색</h3>
+		<p
+			style="font-size: 11px; color: #666; line-height: 1.4; background: #eee; padding: 8px; border-radius: 4px; margin-bottom: 10px;">
+			💡 일반검색이 안되는 페이지는 본문에서 <b>Ctrl+A, Ctrl+C</b>로 복사한 뒤,
+			검색어를 입력하고 <b>[클립보드로 검색]</b>을 눌러주세요.
+		</p>
+		<div class="search-container">
+			<input type="text" id="searchInput" placeholder="검색어 입력 (예: 백호)" autofocus />
+			<button id="clipBtn">📋 클립보드로 검색</button>
+			<button id="searchBtn">검색</button>
+		</div>
 	</div>
 	<div class="footer-link">
-		보다 정밀한 검색은? <a href="#" id="mainSiteLink">hani.chois.cloud</a>
+		보다 정밀한 검색은? <a href="https://hani.chois.cloud" target="_blank" id="mainSiteLink">hani.chois.cloud</a>
 	</div>
-
+	<div id="resultArea"></div>
 	<script src="popup.js"></script>
 </body>
 
