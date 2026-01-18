@@ -34,38 +34,60 @@ function highlightText(text) {
     });
 }
 
-window.onload = function () {
-    const clipBtn = document.getElementById('clipBtn');
-    const resultArea = document.getElementById('resultArea');
+window.onload = async function () {
     const input = document.getElementById('searchInput');
+    const resultArea = document.getElementById('resultArea');
 
-    clipBtn.onclick = async function () {
-        try {
-            const clipText = await navigator.clipboard.readText();
-            // if (input.value) input.value = getSmartQuery(input.value);
-            const finalQuery = input.value.trim();
+    // 팝업이 열리면 무조건 배지부터 지웁니다 (확인했다는 뜻)
+    chrome.action.setBadgeText({ text: "" });
 
-            if (!finalQuery || !clipText) {
-                alert("검색어 입력 혹은 클립보드 복사를 확인해주세요.");
-                return;
-            }
+    // 저장된 검색어 확인
+    chrome.storage.local.get(["pendingSearch"], async (data) => {
+        if (data.pendingSearch) {
+            const selectedText = data.pendingSearch;
+            // 즉시 삭제해서 다음 검색에 영향 안 주게 함
+            chrome.storage.local.remove("pendingSearch"); 
 
-            prepareSearch(finalQuery);
-            const lines = clipText.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
-            const matchedLines = lines.filter(line => 
-                finalQuery.split('/').some(q => line.includes(q.trim()))
-            );
+            input.value = selectedText;
+            // 🚀 바로 검색 실행!
+            handleSearch(); 
+        }
+    });
 
-            if (matchedLines.length > 0) {
-                document.body.style.width = "780px"; 
-                renderReport(resultArea, finalQuery, matchedLines);
-            } else {
-                document.body.style.width = "400px";
-                resultArea.innerHTML = `<p style="color:red; text-align:center;">❌ 결과 없음</p>`;
-            }
-        } catch (err) { alert("오류: " + err); }
-    };
+    document.getElementById('clipBtn').onclick = handleSearch;
+    document.getElementById('searchBtn').onclick = handleSearch; // 일반 검색 버튼도 연결
 };
+
+async function handleSearch() {
+    const input = document.getElementById('searchInput');
+    const resultArea = document.getElementById('resultArea');
+
+    try {
+        const clipText = await navigator.clipboard.readText();
+        const finalQuery = input.value.trim();
+
+        if (!finalQuery) return; // 알림은 위 로직에서 처리
+
+        if (!clipText) {
+            resultArea.innerHTML = `<p style="color:red; text-align:center;">💡 먼저 본문 내용을 Ctrl+C로 복사해 주세요!</p>`;
+            return;
+        }
+
+        prepareSearch(finalQuery);
+        const lines = clipText.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+        const matchedLines = lines.filter(line => 
+            finalQuery.split('/').some(q => line.toLowerCase().includes(q.trim().toLowerCase()))
+        );
+
+        if (matchedLines.length > 0) {
+            document.body.style.width = "780px"; 
+            renderReport(resultArea, finalQuery, matchedLines);
+        } else {
+            document.body.style.width = "400px";
+            resultArea.innerHTML = `<p style="color:red; text-align:center; margin-top:20px; font-weight:bold;">❌ 결과 없음</p>`;
+        }
+    } catch (err) { console.error(err); }
+}
 
 function renderReport(container, query, lines) {
     container.innerHTML = `
