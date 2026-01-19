@@ -1,6 +1,6 @@
 {
   "manifest_version": 3,
-  "name": "퀵 검색기",
+  "name": "검색 엔진",
   "version": "1.1",
   "permissions": [
     "activeTab",
