@@ -108,8 +108,9 @@
     .results-list-wrapper {
         display: flex;
         flex-direction: column;
-        height: 600px; /* 고정값으로 테스트해보세요 */
-        min-height: 400px;
+        /* ⚠️ 핵심: 사용 가능한 높이를 꽉 채우도록 설정 */
+        height: calc(100vh - 350px); 
+        min-height: 500px;
         margin-bottom: 20px;
     }
 
@@ -117,10 +118,9 @@
         flex: 1;
         overflow-y: auto;
         position: relative;
-        background: #e2e8f0;
+        background: #f8fafc; /* 좀 더 연한 배경 */
         border-radius: 12px;
-        border: 1px solid #cbd5e1;
-        -webkit-overflow-scrolling: touch; /* 모바일 대응 */
+        border: 1px solid #e2e8f0;
     }
 
     .virtual-spacer {
