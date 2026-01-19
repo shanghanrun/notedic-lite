@@ -16,7 +16,7 @@ class IndexSearchUI {
     
     searchQuery = $state(""); 
     summaryElement = $state(null);
-	availableCollections =$state(['hani', 'hani2'])
+	availableCollections =$state(['hani', 'hani2', 'hani_medicine'])
     indexDataMap = $state({});           
     isLoading = $state(false);
     isPreloading = $state(false);
