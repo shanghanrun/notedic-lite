@@ -80,6 +80,17 @@ class SearchUI {
         return this.searchResults.length * this.itemHeight;
     }
 
+    toggleFileCheck(index) {
+    // 1. 해당 인덱스의 체크 상태를 반전시킵니다.
+        this.files[index].checked = !this.files[index].checked;
+        
+        // 2. [핵심] 배열을 복사하여 재할당함으로써 Svelte에게 "데이터가 변했다"고 확실히 알려줍니다.
+        // 이 과정을 거쳐야 체크박스 UI와 검색 결과가 즉시 동기화됩니다.
+        this.files = [...this.files];
+        
+        console.log(`파일 체크 변경: ${this.files[index].name} -> ${this.files[index].checked}`);
+    }
+
     // [하이라이트 로직]
     highlightText = (fullText, isFinal = false) => {
         const { regex, colorMap } = this.searchState;
