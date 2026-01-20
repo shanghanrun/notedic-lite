@@ -6,6 +6,12 @@ class SearchUI {
     type = "local";
     files = $state([]); // { name, lines, checked: true }
     searchQuery = $state("");
+
+    // 실험적 코드
+    searchFileQuery = $state("")//로컬파일 검색용(Everything)
+    // 실험 코드 끝
+
+
     scrollTop = $state(0);
     containerHeight = $state(760); 
     itemHeight = $state(180);
