@@ -1,5 +1,10 @@
-<script>
-	import SideBar_FileImport from './../../component/SideBar_FileImport.svelte';
+
+
+<!-- <script>
+
+로컬컴퓨터랑 연결하려다가 일단 포기한 코드
+
+import SideBar_FileImport from './../../component/SideBar_FileImport.svelte';
   import { searchUI } from '$lib/searchUI.svelte';
   import { page } from '$app/stores';
   import SearchHeader from '../../component/AdminSearchHeader.svelte';
@@ -174,4 +179,4 @@ async function loadData() {
   .and-match { border-left: 4px solid #2ecc71; background-color: #fafffa; }
   .file-name { font-size: 0.8rem; color: #7f8c8d; margin-bottom: 5px; }
   .content { line-height: 1.6; word-break: break-all; }
-</style> -->
+</style> --> -->

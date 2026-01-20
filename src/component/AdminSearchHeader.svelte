@@ -29,7 +29,7 @@
 		
 		{#if tag === 'local'}
 			<button class="go-button" onclick={() => { item.reset(); goto('/admin'); }}>
-				admin
+			기존자료 검색
 			</button>
 		{:else if tag === 'server'}
 			<button class="go-button" onclick={() => { item.reset(); goto('/'); }}>
