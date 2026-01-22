@@ -1,0 +1,132 @@
+import { pb } from "./pb.svelte"; // 기존에 만든 포켓베이스 인스턴스
+
+class ChatManager {
+    // --- [상태 변수들] ---
+    rooms = $state([]);
+    activeRoomId = $state(null);
+    messages = $state([]);
+    newMessage = $state("");
+    newRoomTitle = $state("");
+	users =$state([])
+	onlineMap = $state({}) //온라인 상태 관리
+
+    // --- [유도된 상태 (Derived)] ---
+    // 현재 user가 선택된 방 객체
+    get currentRoom() {
+        return this.rooms.find(r => r.id === this.activeRoomId);
+    }
+
+    // 내가 현재 방의 멤버인지 확인
+    get isMember() {
+        if (!this.currentRoom || !pb.authStore.model) return false;
+        return this.currentRoom.members?.includes(pb.authStore.model.id);
+    }
+
+    // --- [메서드 (함수들)] ---
+
+    // 1. 초기 데이터 로드 및 구독
+    async init() {
+        this.rooms = await pb.collection("rooms").getFullList({ sort: "-created" });
+        
+        // 실시간 방 목록 구독
+        pb.collection("rooms").subscribe("*", ({ action, record }) => {
+            if (action === "create") this.rooms = [record, ...this.rooms];
+            if (action === "update") {
+                this.rooms = this.rooms.map(r => r.id === record.id ? record : r);
+            }
+        });
+    }
+
+    // 2. 방 만들기 (생성자 자동 포함)
+    async createRoom() {
+        if (!this.newRoomTitle.trim()) return alert("방 제목을 입력하세요!");
+
+        try {
+            const data = {
+                title: this.newRoomTitle,
+                active: true,
+                owner: pb.authStore.model.id,
+                members: [pb.authStore.model.id] // 만든 사람은 자동으로 멤버 추가
+            };
+
+            const record = await pb.collection("rooms").create(data);
+            // this.rooms = [...this.rooms, record];   // 방만 추가하고, 방의 목록은 구독로직에서 알아서 처리하게 해야 중복이 안된다.
+            this.activeRoomId = record.id;
+            this.newRoomTitle = "";
+            console.log("✅ 방 생성 및 자동 입장 성공!");
+        } catch (err) {
+            console.error("❌ 방 생성 실패:", err);
+        }
+    }
+	// 2. 유저 초대 (메시지 발송)
+    async inviteUser(targetUser) {
+        if (!this.activeRoomId) return alert("방을 먼저 만들고 초대하세요.");
+
+        try {
+            await pb.collection("messages").create({
+                room: this.activeRoomId,
+                user: pb.authStore.model.id,
+                content: `🔔 [시스템] ${targetUser.name}님을 초대했습니다.`,
+                type: 'invitation', // 초대 메시지 타입 구분
+                target_user: targetUser.id
+            });
+            alert(`${targetUser.name}님을 초대했습니다!`);
+        } catch (err) {
+            console.error("❌ 초대 메시지 실패:", err);
+        }
+    }
+
+    // 3. 방 입장하기
+    async joinRoom() {
+        try {
+            const newMembers = [...(this.currentRoom.members || []), pb.authStore.model.id];
+            const record = await pb.collection("rooms").update(this.activeRoomId, {
+                members: newMembers
+            });
+            
+            // 시스템 메시지 발송
+            await pb.collection("messages").create({
+                room: this.activeRoomId,
+                user: pb.authStore.model.id,
+                content: `📢 ${pb.authStore.model.name}님이 입장하셨습니다.`
+            });
+
+            // 시스템 메시지 하나 쏴주기
+        	await this.sendSystemMessage(`📢 ${pb.authStore.model.name || '유저'}님이 입장하셨습니다.`);
+        } catch (err) {
+            console.error("❌ 입장 실패:", err);
+        }        
+    }
+
+    // 4. 메시지 전송
+    async sendMessage() {
+        if (!this.newMessage.trim() || !this.activeRoomId) return;
+        await pb.collection("messages").create({
+            room: this.activeRoomId,
+            user: pb.authStore.model.id,
+            content: this.newMessage
+        });
+        this.newMessage = "";
+    }
+	// 메시지 로드 (방 바뀔 때마다 실행)
+    async loadMessages(roomId) { // 해당 방에서 이전에 나누었던 대화 50개 긁어와 보여주기
+        this.activeRoomId = roomId;
+        const list = await pb.collection("messages").getList(1, 50, {
+            filter: `room = "${roomId}"`, //이 방의 메시지만 골라내고
+            sort: 'created', // 시간순으로 정렬하고
+            expand: 'user' // 고유 외계어 ID대신에,이름 정보까지 챙겨오도록 
+        });
+        this.messages = list.items;
+    }
+
+    async sendSystemMessage(content) {
+        await pb.collection("messages").create({
+            room: this.activeRoomId,
+            user: pb.authStore.model.id, // 시스템 계정이 따로 없다면 현재 유저로
+            content: content
+        });
+    }
+}
+
+// 싱글톤으로 내보내기
+export const chatManager = new ChatManager();

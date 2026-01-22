@@ -1,0 +1,435 @@
+<script>
+  import { pb } from "$lib/pb.svelte";
+  import { onMount, onDestroy } from "svelte";
+  import { chatManager } from "$lib/chatManager.svelte";
+
+  // --- 상태 관리 ($state) ---
+  let now = $state(Date.now());
+  let currentUser = $state(pb.authStore.model);
+
+  let heartbeatInterval;
+  let timerInterval;
+
+
+  let email = $state("");
+  let password = $state("");
+  let isLogged = $state(pb.authStore.isValid); // 로그인 여부 체크
+
+  async function handleLogin() {
+    try {
+      // 1. 기존 세션 비우기 (필수!)
+      pb.authStore.clear();
+
+      // 2. 입력받은 정보로 로그인
+      await pb.collection("users").authWithPassword(email, password);
+
+      // 3. 성공 시 상태 업데이트
+      currentUser = pb.authStore.model;
+      isLogged = true;
+
+      // 4. 채팅 데이터 초기화
+      await chatManager.initChat();
+      alert(`${currentUser.name || "유저"}님 환영합니다!`);
+    } catch (err) {
+      alert("로그인 실패: 이메일이나 비번을 확인하세요!");
+    }
+  }
+
+  function logout() {
+    pb.authStore.clear();
+    isLogged = false;
+    location.reload(); // 깔끔하게 새로고침
+  }
+
+  async function updateMyStatus() {
+        if (!pb.authStore.model) return;
+        const userId = pb.authStore.model.id;
+        try {
+            const existing = await pb.collection("online_status").getFirstListItem(`userId="${userId}"`).catch(() => null);
+            if (existing) {
+                await pb.collection("online_status").update(existing.id, { last_seen: new Date().toISOString() });
+            } else {
+                await pb.collection("online_status").create({ userId, last_seen: new Date().toISOString() });
+            }
+        } catch (err) { console.error("하트비트 에러", err); }
+  }
+
+  async function init() {
+        if (!pb.authStore.isValid) return;
+
+        try {
+            // 1. 초기 데이터 세팅
+            chatManager.users = await pb.collection("users").getFullList();
+            chatManager.rooms = await pb.collection("rooms").getFullList({ filter: "active = true" });
+            
+            // 2. 하트비트 시작
+            updateMyStatus();
+            heartbeatInterval = setInterval(updateMyStatus, 30000);
+
+            // 3. 실시간 온라인 감지
+            pb.collection("online_status").subscribe("*", ({ action, record }) => {
+                chatManager.onlineMap = { ...chatManager.onlineMap, [record.userId]: record.last_seen };
+            });
+
+            // 4. 실시간 메시지 감지
+            pb.collection("messages").subscribe("*", ({ action, record }) => {
+                if (action === "create" && record.room === chatManager.activeRoomId) {
+                    chatManager.messages = [...chatManager.messages, record];
+                }
+            }, { expand: "user" });
+
+            // 5. 실시간 방 목록 감지 (누가 방 새로 만들면 바로 뜨게)
+            pb.collection("rooms").subscribe("*", ({ action, record }) => {
+                if (action === "create") chatManager.rooms = [...chatManager.rooms, record];
+                if (action === "update") chatManager.rooms = chatManager.rooms.map(r => r.id === record.id ? record : r);
+            });
+
+        } catch (err) { console.error("초기화 실패", err); }
+  }
+
+  // 2. 초기화 및 실시간 데이터 바인딩
+  async function initChat() {
+    if (!pb.authStore.isValid) return;
+
+    try {
+      // (1) 기본 정보 로드
+      users = await pb.collection("users").getFullList();
+      rooms = await pb
+        .collection("rooms")
+        .getFullList({ filter: "active = true" });
+      if (rooms.length > 0 && !activeRoomId) activeRoomId = rooms[0].id;
+
+      // (2) 온라인 상태 초기 로드 (userId 필드 기준)
+      const statuses = await pb.collection("online_status").getFullList();
+      const tempObj = {};
+      statuses.forEach((s) => {
+        if (s.userId) tempObj[s.userId] = s.last_seen;
+      });
+      onlineMap = tempObj; // 객체 통째로 갈아끼우기
+
+      // (3) 하트비트 시작 (30초 주기)
+      updateMyStatus();
+      if (heartbeatInterval) clearInterval(heartbeatInterval);
+      heartbeatInterval = setInterval(updateMyStatus, 30000);
+
+      // (4) [실시간] 온라인 상태 변화 감지
+      pb.collection("online_status").subscribe("*", ({ action, record }) => {
+        if (action === "create" || action === "update") {
+          // 새로운 객체를 할당하여 반응성을 강제함
+          onlineMap = { ...onlineMap, [record.userId]: record.last_seen };
+        }
+      });
+
+      // (5) [실시간] 메시지 감지
+      pb.collection("messages").subscribe(
+        "*",
+        ({ action, record }) => {
+          if (action === "create" && record.room === activeRoomId) {
+            if (!messages.find((m) => m.id === record.id)) {
+              messages = [...messages, record];
+            }
+          }
+        },
+        { expand: "user" },
+      );
+    } catch (err) {
+      console.error("❌ 초기화 에러:", err);
+    }
+  }
+
+  // 3. 내 온라인 상태 전송 (하트비트)
+  async function updateMyStatus() {
+    const myId = pb.authStore.model?.id; // 여기서 자동으로 '6gsm4ykrqgd2pdb'가 잡힙니다.
+    if (!myId) return;
+
+    try {
+      let existing = null;
+      try {
+        existing = await pb
+          .collection("online_status")
+          .getFirstListItem(`userId="${myId}"`);
+      } catch (e) {}
+
+      const data = {
+        userId: myId,
+        last_seen: new Date().toISOString(),
+        is_online: true,
+      };
+
+      if (existing) {
+        await pb.collection("online_status").update(existing.id, data);
+      } else {
+        await pb.collection("online_status").create(data);
+      }
+      console.log("✅ 하트비트 전송 성공 (ID:", myId, ")");
+    } catch (err) {
+      console.error("❌ 하트비트 실패:", err);
+    }
+  }
+
+  // 4. ★핵심★ 온라인 여부 판단 함수
+  function isOnline(userIdToCheck) {
+    if (!userIdToCheck) return false;
+
+    // 1. [본인 확인] 로그인한 ID와 목록의 ID가 같으면 무조건 켬
+    if (userIdToCheck === pb.authStore.model?.id) {
+      return true;
+    }
+
+    // 2. [타인 확인] 나머지는 지도에 데이터가 있는지 확인
+    console.log("onlineMap 출력");
+    console.table(onlineMap);
+    const lastSeenStr = onlineMap[userIdToCheck];
+    if (!lastSeenStr) return false;
+
+    const lastSeenTime = new Date(lastSeenStr).getTime();
+    return Date.now() - lastSeenTime < 90000;
+  }
+
+  onMount(async () => {
+    // await loginAsChoco();
+    // console.log("초코 로그인");
+    // await loginAsTest();
+    // console.log("테스트 로그인");
+    // 10초마다 'now'를 갱신하여 화면의 불빛 상태를 새로고침함
+    timerInterval = setInterval(() => {
+      now = Date.now();
+    }, 10000);
+
+    return () => {
+      if (heartbeatInterval) clearInterval(heartbeatInterval);
+      if (timerInterval) clearInterval(timerInterval);
+      pb.collection("online_status").unsubscribe();
+      pb.collection("messages").unsubscribe();
+    };
+  });
+
+  // 방 변경 시 메시지 데이터 로드
+  $effect(async () => {
+    if (activeRoomId && pb.authStore.isValid) {
+      const res = await pb.collection("messages").getList(1, 50, {
+        filter: `room = "${activeRoomId}"`,
+        expand: "user",
+        sort: "created",
+      });
+      messages = res.items;
+    }
+  });
+
+  async function sendMessage() {
+    if (!newMessage.trim() || !activeRoomId) return;
+    try {
+      await pb.collection("messages").create({
+        room: activeRoomId,
+        user: pb.authStore.model.id,
+        content: newMessage,
+      });
+      newMessage = "";
+    } catch (err) {
+      console.error("❌ 메시지 전송 실패:", err);
+    }
+  }
+</script>
+
+<!-- {#if !currentUser}
+  <div class="loading">서버 연결 중...</div>
+{:else} -->
+  <div class="chat-layout">
+    <aside class="user-list">
+      {#if !isLogged}
+        <div class="login-container">
+          <h2>🚀 형님 메신저 로그인</h2>
+          <input type="email" bind:value={email} placeholder="이메일 입력" />
+          <input
+            type="password"
+            bind:value={password}
+            placeholder="비밀번호 입력"
+          />
+          <button onclick={handleLogin}>접속하기</button>
+        </div>
+      {:else}
+        <div class="chat-layout">
+          <button onclick={logout} style="float: right;">로그아웃</button>
+        </div>
+      {/if}
+
+      <div class="room-input-group" style="padding: 10px;">
+        <input bind:value={newRoomTitle} placeholder="방 제목 입력..." />
+        <button onclick={createRoom}>생성</button>
+      </div>
+      <h3>👥 접속자 목록</h3>
+      <ul>
+        {#each users as user}
+          <li
+            class="user-item"
+            onclick={() => inviteUser(user)}
+            style="cursor: pointer; padding: 5px;"
+          >
+            <span class="status-dot {isOnline(user.id) ? 'online' : 'offline'}"
+            ></span>
+            <span>{user.name || user.id.slice(0, 5)}</span>
+          </li>
+        {/each}
+      </ul>
+    </aside>
+
+    <main class="chat-area">
+      <nav class="tabs">
+        {#each rooms as room}
+          <button
+            class:active={activeRoomId === room.id}
+            onclick={() => (activeRoomId = room.id)}
+          >
+            {room.title}
+          </button>
+        {/each}
+      </nav>
+
+      <div class="messages">
+        {#each messages as msg}
+          <div
+            class="message {msg.user === pb.authStore.model.id ? 'mine' : ''}"
+          >
+            <small>{msg.expand?.user?.name || "익명"}</small>
+            <p>{msg.content}</p>
+          </div>
+        {/each}
+      </div>
+
+      <div class="input-box">
+        <input
+          bind:value={newMessage}
+          onkeydown={(e) => e.key === "Enter" && sendMessage()}
+          placeholder="메시지를 입력하세요..."
+        />
+        <button onclick={sendMessage}>전송</button>
+      </div>
+    </main>
+  </div>
+<!-- {/if} -->
+
+<style>
+  .chat-layout {
+    display: flex;
+    height: 100vh;
+    background: #f0f2f5;
+    font-family: sans-serif;
+  }
+  .user-list {
+    width: 220px;
+    background: white;
+    border-right: 1px solid #ddd;
+    padding: 20px;
+  }
+  .user-item {
+    display: flex;
+    align-items: center;
+    margin-bottom: 12px;
+    gap: 10px;
+  }
+
+  /* 상태 불빛 스타일 */
+  .status-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: #bbb;
+    transition: all 0.3s;
+  }
+  .status-dot.online {
+    background: #4caf50;
+    box-shadow: 0 0 8px #4caf50;
+  }
+
+  .chat-area {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+  }
+  .tabs {
+    display: flex;
+    background: #e4e6eb;
+  }
+  .tabs button {
+    padding: 12px 20px;
+    border: none;
+    cursor: pointer;
+    background: none;
+  }
+  .tabs button.active {
+    background: white;
+    font-weight: bold;
+    border-top: 3px solid #ff6b00;
+  }
+
+  .messages {
+    flex: 1;
+    padding: 20px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .message {
+    padding: 10px 14px;
+    border-radius: 12px;
+    background: white;
+    max-width: 70%;
+    align-self: flex-start;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+  }
+  .message.mine {
+    align-self: flex-end;
+    background: #ffefd5;
+  }
+  .message small {
+    display: block;
+    font-size: 0.75rem;
+    color: #666;
+    margin-bottom: 4px;
+  }
+
+  .input-box {
+    padding: 20px;
+    background: white;
+    display: flex;
+    gap: 10px;
+    border-top: 1px solid #ddd;
+  }
+  .input-box input {
+    flex: 1;
+    padding: 12px;
+    border: 1px solid #ddd;
+    border-radius: 20px;
+    outline: none;
+  }
+  .input-box button {
+    padding: 0 20px;
+    background: #ff6b00;
+    color: white;
+    border: none;
+    border-radius: 20px;
+    cursor: pointer;
+  }
+
+  .login-container {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    max-width: 300px;
+    margin: 100px auto;
+    padding: 20px;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+  }
+  .login-container input {
+    padding: 10px;
+  }
+  .login-container button {
+    padding: 10px;
+    background: #ff6b00;
+    color: white;
+    border: none;
+    cursor: pointer;
+  }
+</style>
