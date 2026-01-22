@@ -3,7 +3,8 @@ import { pb } from "./pb.svelte";
 class ChatManager {
     // --- [상태 변수들] ---
     rooms = $state([]);
-    activeRoomId = $state(null);
+    activeRoomId = $state(null); // 실제로 입장한 방
+	activeRoomName =$state(""); // 실제 입장한 방 이름
     messages = $state([]);
     newMessage = $state("");
     newRoomTitle = $state("");
@@ -16,13 +17,8 @@ class ChatManager {
 	isLoadingMore = $state(false) // 메시지 더보기 중인지 알려주는 스위치
 	hasMore = $state(true) // 더 가져올 데이터가 있는 지 여부
 
-	// 방을 처음 클릭했을 때 실행하는 함수
-	async enterRoom(roomId) {
-		this.msgCount = 50; // 방 들어올 때 50개로 리셋
-		this.isLoadingMore = false; // 스위치 끄기
-		await this.loadMessages(roomId);
-	}
-
+	
+	
     // --- [유도된 상태 (Derived)] ---
 	// 현재 user가 선택한 방 객체
     get currentRoom() {
@@ -43,6 +39,17 @@ class ChatManager {
 			return this.users.find(u => u.id === memberId) || { id: memberId, name: '익명' };
 		});
 	}
+
+
+	// 내상태와 초대알림 위해
+	myName = $state(pb.authStore.model?.name || "나"); 
+	hasNewInvite =$state(false);
+	hasNewNotification = $state(false); // 새로운 알림이 있는지 여부
+	notificationMessage = $state(""); // 팝업에 띄울 내용
+	isPopupOpen = $state(false); // 팝업창 열림 상태
+	invitations = $state([]); // 초대장 목록 저장용
+	
+
 
     // --- [메서드 (함수들)] ---
 
@@ -65,12 +72,19 @@ class ChatManager {
             }
         });
 
-		// 🔥 [핵심 추가] 방이 하나라도 있다면 첫 번째 방을 자동으로 클릭한 것처럼 만듦
-		// if (this.rooms.length > 0) {
-		// 	// loadMessages를 호출하면 activeRoomId가 세팅되고 메시지를 불러옵니다.
-		// 	// 멤버가 아니더라도 loadMessages는 activeRoomId를 바꿔주니까 UI에 '입장하기'가 뜹니다.
-		// 	this.loadMessages(this.rooms[0].id);
-		// }
+		// 🔥 [추가] 초대장(invitation) 실시간 구독 시작!
+		await pb.collection("invitation").unsubscribe("*");
+		pb.collection("invitation").subscribe("*", ({ action, record }) => {
+			// 나에게 온 초대장이고, 새로 생성된(create) 경우라면?
+			if (action === "create" && record.to === pb.authStore.model?.id) {
+				console.log("💌 새로운 초대가 도착했습니다!");
+				this.hasNewNotification = true; // 블링블링 스위치 ON
+				this.notificationMessage = record.message; // 알림 내용 저장
+				
+				// (선택사항) 브라우저 기본 알림도 띄우고 싶다면
+				// new Notification("새로운 초대", { body: record.message });
+			}
+		});
     }
 
     createRoom = async ()=> {  
@@ -110,23 +124,6 @@ class ChatManager {
     selectRoom= async(roomId)=> {
         this.activeRoomId = roomId;
         this.loadMessages(roomId); //기존 50개 대화불러오기
-    }
-
-    inviteUser = async(targetUser)=> {
-        if (!this.activeRoomId) return alert("방을 먼저 선택하고 초대하세요.");
-
-        try {
-            await pb.collection("messages").create({
-                room: this.activeRoomId,
-                user: pb.authStore.model.id,
-                content: `🔔 [시스템] ${targetUser.name}님을 초대했습니다.`,
-                type: 'invitation', //초대 메시지 타입구분
-                target_user: targetUser.id
-            });
-            alert(`${targetUser.name}님을 초대했습니다!`);
-        } catch (err) {
-            console.error("❌ 초대 메시지 실패:", err);
-        }
     }
 
     joinRoom = async () => {
@@ -219,9 +216,9 @@ class ChatManager {
 
 	// 1. 메시지 실시간 구독 메서드
 	subscribeMessages = async () => {
-		// 기존 구독이 있다면 중복 방지를 위해 해제
+		//1. 혹시나 남아있을지 모를 '이전 방'의 구독을 깨끗이 지웁니다. (중복 방지 핵심!)
 		await pb.collection("messages").unsubscribe("*");
-
+		// 2. 현재 선택된 방이 없으면 구독 안 함
 		if (!this.activeRoomId) return;
 
 		// 현재 선택된 방(activeRoomId)의 메시지만 실시간 감시
@@ -245,25 +242,41 @@ class ChatManager {
         }
     }
 
+	// 나에게 온 초대장 목록 불러오기
+	loadInvitations = async () => {
+		try {
+			this.invitations = await pb.collection('invitation').getFullList({
+				filter: `to = "${pb.authStore.model.id}" && success = false`,
+				expand: 'from,room', // 보낸 사람과 방 정보를 함께 가져와야 이름이 뜹니다!
+				sort: '-created'
+			});
+		} catch (err) {
+			console.error("초대장 로드 실패:", err);
+		}
+	}
+
 	// 1. 방 나가기 (멤버 목록에서 나를 제거)
 	leaveRoom = async () => {
 		if (!confirm("이 방에서 나가시겠습니까?")) return;
-
-		this.isLoadingMore = false;
+		
+		const roomIdToLeave = this.activeRoomId; // 나갈 방 ID 임시 저장
+		this.isLoadingMore = false;     
 		
 		try {
+			// 1. 퇴장 메시지 먼저 발송 (방 ID가 살아있을 때!)
+			await this.sendSystemMessage(`📢 ${pb.authStore.model.name || '유저'}님이 퇴장하셨습니다.`);
+
 			const userId = pb.authStore.model.id;
 			const newMembers = this.currentRoom.members.filter(id => id !== userId);
 			
-			// 1. 서버 업데이트
-			await pb.collection("rooms").update(this.activeRoomId, {
+			// 2. 서버 업데이트
+			await pb.collection("rooms").update(roomIdToLeave, {
 				members: newMembers
 			});
 
-			// 2. [중요] 나간 직후에는 아예 방 선택을 해제해서 유령 UI를 없앱니다.
+			// 3. 마지막에 상태 정리
 			this.activeRoomId = null; 
 			this.messages = [];
-			
 			console.log("✅ 퇴장 완료");
 		} catch (err) {
 			console.error("퇴장 실패", err);

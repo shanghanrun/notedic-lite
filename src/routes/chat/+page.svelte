@@ -2,7 +2,7 @@
   import { pb } from "$lib/pb.svelte";
   import { onMount, onDestroy } from "svelte";
   import { chatManager } from "$lib/chatManager.svelte";
-  import { untrack } from "svelte";
+
 
   // --- 상태 관리 ($state) ---
   let currentUser = $state(pb.authStore.model);
@@ -78,6 +78,7 @@
   let heartbeatInterval;
   let email = $state("");
   let password = $state("");
+
   
   async function handleLogin() {
     try {
@@ -134,11 +135,11 @@
                 chatManager.onlineMap = { ...chatManager.onlineMap, [record.userId]: record.last_seen };
             });
 
-            pb.collection("messages").subscribe("*", ({ action, record }) => {
-                if (action === "create" && record.room === chatManager.activeRoomId) {
-                    chatManager.messages = [...chatManager.messages, record];
-                }
-            }, { expand: "user" });
+            // pb.collection("messages").subscribe("*", ({ action, record }) => {
+            //     if (action === "create" && record.room === chatManager.activeRoomId) {
+            //         chatManager.messages = [...chatManager.messages, record];
+            //     }
+            // }, { expand: "user" }); // subscribeMessage함수와 중복된다.
             pb.collection("rooms").subscribe("*", ({ action, record }) => {
               if (action === "delete") {
                   // 1. 목록에서 해당 방 제거
@@ -169,6 +170,143 @@
     // 2. 데이터 더 가져오기
     await chatManager.loadMore();    
   }
+
+
+
+  let selectedUserForMenu = $state(null); // 메뉴를 띄울 대상 유저
+  let menuPosition = $state({ x: 0, y: 0 }); // 메뉴가 뜰 위치
+
+
+  async function inviteUser(targetUser) {
+    if (!chatManager.activeRoomId) return alert("방을 먼저 선택하고 초대하세요.");
+
+    const targetUserName = targetUser.name || targetUser.username || "익명"
+
+    // 1. 초대장 생성 (상대방 알림용)   
+    await pb.collection('invitation').create({
+      from: pb.authStore.model.id,
+      to: targetUser.id,
+      room: chatManager.activeRoomId,
+      message: `${pb.authStore.model.name}님이 '${chatManager.activeRoomName}' 방으로 초대하셨습니다!`,
+      success: false, // 초기값은 false
+      type:'invite'
+    });
+
+    await chatManager.sendSystemMessage(`[시스템] ${targetUserName}님을 초대했습니다.`);
+    alert(`${targetUserName}님께 초대장을 보냈습니다!`);
+
+  }
+
+
+  async function acceptInvitation(invite) {
+    try {
+        // 1. 방 멤버로 추가 (이미 입장 함수가 있다면 활용)
+        // invite.room에 방 ID가 들어있습니다.
+        // invite.expand.room: { id: "...", title: "초코의 방", active: true ... } (방 전체 정보)
+        chatManager.activeRoomId = invite.room;
+        await chatManager.joinRoom(); 
+
+        // 2. 초대장 처리 완료 (success = true)
+        await pb.collection('invitation').update(invite.id, { success: true });
+
+        // 3. 팝업 닫고, 알람 UI끄기
+        chatManager.isPopupOpen = false;
+        chatManager.hasNewInvite = false;
+
+        // 로컬 목록 갱신 및 팝업 닫기
+        updateInviteUI(invite.id);
+        alert(`입장 완료!`);
+    } catch (err) {
+        console.error("초대 수락 실패:", err);
+        alert("입장 처리 중 오류가 발생했습니다.");
+    }
+  }
+
+  // [보류] - 사실상 거절 및 삭제
+async function declineInvitation(invite) {
+    if (!confirm("이 초대를 삭제하시겠습니까?")) return;
+    
+    try {
+        await pb.collection('invitation').delete(invite.id); // DB에서 삭제
+        updateInviteUI(invite.id); // UI에서 제거
+    } catch (err) {
+        console.error("초대 삭제 실패:", err);
+    }
+}
+
+// UI 리스트 갱신 공통 함수
+async function updateInviteUI(id) {
+    chatManager.invitations = chatManager.invitations.filter(i => i.id !== id);
+    if (chatManager.invitations.length === 0) {
+        chatManager.isPopupOpen = false;
+        chatManager.hasNewNotification = false;
+    }
+    try {
+        await pb.collection('invitation').delete(id); // DB에서 삭제
+    } catch (err) {
+        console.error("초대 삭제 실패:", err);
+    }
+}
+
+async function sendDirectMessage(user, type = 'message') {
+    
+    const msg = prompt(`${user.name}님께 보낼 내용을 입력하세요.`);
+    if (!msg) return;
+
+    try {
+          await pb.collection('invitation').create({
+          from: pb.authStore.model.id,
+          to: user.id,
+          message: msg,
+          type: 'dm', // 🔥 도장 쾅!
+          success: false
+          });
+
+        alert("쪽지를 보냈습니다!");
+    } catch (err) {
+        alert("전송 실패!");
+    }
+}
+
+
+async function sendEmail(user) {
+    let title = prompt(`${user.name}님께 보낼 이메일 제목`);
+    let content = prompt(`${user.name}님께 이메일 내용`);
+    
+    if (!user.email) {
+        alert("이 유저는 이메일 정보가 없습니다.");
+        return;
+    }
+    try {
+          await pb.collection('invitation').create({
+          from: pb.authStore.model.id,
+          to: user.id,
+          message: "이 메일이 발송되었습니다.",
+          type: 'email', // 🔥 도장 쾅!
+          success: false
+          });
+        alert("메일을 보냈습니다!");
+    } catch (err) {
+        alert("전송 실패!");
+    }
+    // 브라우저의 기본 메일 앱(아웃룩, 지메일 등)을 실행합니다.
+    const subject = encodeURIComponent(title || "");
+    const body = encodeURIComponent(content || "");
+    const mailtoUrl = `mailto:${user.email}?subject=${subject}&body=${body}`;
+
+    // 현재 창 대신 새 창(또는 팝업) 느낌으로 호출
+    window.open(mailtoUrl, '_blank');
+}
+
+function openSmartMailBox() {
+    const userEmail = pb.authStore.model.email || "";
+    let url = "https://mail.google.com/"; // 기본값
+
+    if (userEmail.includes("naver.com")) url = "https://mail.naver.com/";
+    else if (userEmail.includes("daum.net") || userEmail.includes("kakao.com")) url = "https://mail.kakao.com/";
+    
+    window.open(url, "_blank");
+}
 
   onMount(() => {
         init();
@@ -202,10 +340,91 @@
       <button onclick={() => chatManager.createRoom()}>새 채팅방 만들기</button>
     </div>
 
+    <div class="my-profile-container">
+      <div class="my-info">
+        <span class="status-dot online"></span>
+        <span class="user-name">me: {chatManager.myName}</span>
+      </div>
+      
+      <button 
+        class="noti-btn {chatManager.hasNewNotification ? 'bling-bling' : ''}" 
+        onclick={async() => { 
+                  await chatManager.loadInvitations(); // 팝업 열 때 목록 가져오기
+                  //먼저 확실히 데이터를 받은 이후에 팝업시키기
+                  chatManager.isPopupOpen = true; 
+                  chatManager.hasNewNotification = false; 
+                  }}
+      >
+        <i class="icon-mail">✉️</i> </button>
+    </div>
+
+    {#if chatManager.isPopupOpen}
+      <div class="modal-overlay" onclick={() => chatManager.isPopupOpen = false}>
+        <div class="invite-modal" onclick={(e) => e.stopPropagation()}>
+          
+          <div class="modal-header">
+            <h3>💌 알림 센터</h3>
+          </div>
+          
+          <div class="invite-list">
+            {#if (chatManager.invitations.length===0)}
+              <p class="msg-content">"no items"</p>
+              <div class="btn-group">
+                <button class="accept-btn" onclick={() => {chatManager.isPopupOpen = false;}}>닫기</button>
+              </div>
+
+            {/if}
+              {#each chatManager.invitations as invite}
+                <div class="invite-card">
+                  
+                  {#if invite.type === 'invite'}
+                    <p class="type-tag invite">🏠 방 초대</p>
+                    <p><strong>{invite.expand?.from?.name}</strong>님이 초대하셨습니다.</p>
+                    <p class="msg-content">"{invite.message}"</p>
+                    <div class="btn-group">
+                      <button class="accept-btn" onclick={() => acceptInvitation(invite)}>수락 및 입장</button>
+                      <button class="decline-btn" onclick={() => declineInvitation(invite)}>거절</button>
+                    </div>
+
+                  {:else if invite.type === 'dm'}
+                    <p class="type-tag dm">💬 쪽지</p>
+                    <p><strong>{invite.expand?.from?.name}</strong>님의 메시지</p>
+                    <p class="msg-content">"{invite.message}"</p>
+                    <div class="btn-group">
+                      <button class="accept-btn" onclick={() => updateInviteUI(invite.id)}>확인</button>
+                    </div>
+                  {:else if invite.type === 'email'}
+                    <p class="type-tag email">📧 이메일 도착</p>
+                    <p><strong>{invite.expand?.from?.name}</strong>님이 메일을 보냈습니다.</p>
+                    <p class="msg-content">상대방이 보낸 메일을 확인해 보세요.</p>
+                    
+                    <div class="btn-group" style="flex-direction: column;"> 
+                      <button class="accept-btn" onclick={openSmartMailBox} style="background: #ea4335;">
+                        메일 바로가기
+                      </button>
+                      <button class="decline-btn" onclick={() => updateInviteUI(invite.id)}>
+                        알림 지우기
+                      </button>
+                    </div>
+                  {/if}
+
+                </div>
+              {/each}
+          
+          </div>
+        </div>
+      </div>
+    {/if}
+
+
     <h3>👥 접속자 목록</h3>
     <ul>
       {#each chatManager.users as user}
-        <li class="user-item" onclick={() => chatManager.inviteUser(user)} style="cursor: pointer; padding: 5px;">
+        <li class="user-item" onclick={(e) => {
+              e.stopPropagation(); // 부모 클릭 방지
+              selectedUserForMenu = user;
+              menuPosition = { x: e.clientX, y: e.clientY }; // 클릭한 마우스 위치 저장
+        }}>
           <span class="status-dot {isOnline(user.id) ? 'online' : 'offline'}"></span>
           <span>{user.name || user.id.slice(0, 5)}</span>
         </li>
@@ -218,7 +437,9 @@
       {#each chatManager.rooms as room}
         <button
           class:active={chatManager.activeRoomId === room.id}
-          onclick={() => chatManager.loadMessages(room.id)}
+          onclick={() => {
+            chatManager.activeRoomName = room.title;
+            chatManager.loadMessages(room.id)}}
         >
           {room.title}
         </button>
@@ -306,6 +527,34 @@
       {/if}
     {/if}
   </main>
+
+
+
+  {#if selectedUserForMenu}
+    <div class="menu-overlay" onclick={() => selectedUserForMenu = null}>
+      <div class="user-context-menu" 
+          style="top: {menuPosition.y}px; left: {menuPosition.x}px;"
+          onclick={(e) => e.stopPropagation()}>
+        <div class="menu-header">👤 {selectedUserForMenu.name || '익명'}</div>
+        
+        <button onclick={() => { inviteUser(selectedUserForMenu); selectedUserForMenu = null; }}>
+          📩 채팅방 초대하기
+        </button>
+        
+        <button onclick={() => { sendDirectMessage(selectedUserForMenu); selectedUserForMenu = null; }}>
+          💬 쪽지 보내기
+        </button>
+        
+        <button onclick={() => { sendEmail(selectedUserForMenu); selectedUserForMenu = null; }}>
+          📧 이메일 보내기
+        </button>
+
+        <button onclick={() => selectedUserForMenu = null} class="close-btn">
+          취소
+        </button>
+      </div>
+    </div>
+  {/if}
 </div>
 
 
@@ -435,6 +684,8 @@
     gap: 10px;
     padding: 8px;
     border-bottom: 1px solid #f0f0f0;
+    cursor: pointer; 
+    padding: 5px;
   }
   .user-item:last-child {
     border-bottom: none;
@@ -572,4 +823,169 @@
     align-items: center; 
     border-bottom: 2px solid #ffeeba;
   }
+
+
+
+  .my-profile-container {
+    width: 70%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px;
+  background: #f9f9f9;
+  border: 1px solid #ddd;
+  border-radius: 5px;
+  margin-bottom: 10px;
+}
+
+.noti-btn {
+  background: #eee; /* 기본 비활성 톤 */
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background 0.3s;
+}
+/* 알림 왔을 때 - 블링블링 활성 상태 */
+.noti-btn.bling-bling {
+  background: #fff3bf; /* 부드러운 노란색 */
+  border: 1px solid #fab005;
+  animation: pulse 0.8s infinite alternate;
+}
+.user-name{
+  color: rgb(28, 66, 254);
+  font-weight: 500;
+}
+
+/* 🔥 알림 왔을 때의 블링블링 효과 */
+.noti-btn.bling-bling {
+  background: #ffeb3b; /* 활성 바탕색 (노란색 계열) */
+  animation: pulse 0.5s infinite alternate;
+}
+
+@keyframes pulse {
+  from { transform: scale(1); box-shadow: 0 0 0px rgba(255, 235, 59, 0); }
+  to { transform: scale(1.1); box-shadow: 0 0 10px rgba(255, 235, 59, 0.8); }
+}
+
+  .menu-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  z-index: 1000;
+}
+
+.user-context-menu {
+  position: absolute;
+  background: white;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  box-shadow: 0 4px 15px rgba(0,0,0,0.15);
+  min-width: 150px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.menu-header {
+  padding: 10px;
+  background: #f8f9fa;
+  font-size: 0.9rem;
+  font-weight: bold;
+  border-bottom: 1px solid #eee;
+  color: #555;
+}
+
+.user-context-menu button {
+  padding: 12px 15px;
+  border: none;
+  background: white;
+  text-align: left;
+  cursor: pointer;
+  font-size: 0.9rem;
+  transition: background 0.2s;
+}
+
+.user-context-menu button:hover {
+  background: #f0f7ff;
+  color: #007bff;
+}
+
+.user-context-menu .close-btn {
+  border-top: 1px solid #eee;
+  color: #999;
+}
+
+
+/* 팝업 전체 배경 (어둡게 처리) */
+.modal-overlay {
+  position: fixed;
+  top: 0; left: 0; width: 100vw; height: 100vh;
+  background: rgba(0, 0, 0, 0.6); /* 뒷배경 어둡게 */
+  display: flex; justify-content: center; align-items: center;
+  z-index: 9999; /* 최상단 */
+}
+
+/* 팝업 본체 */
+.invite-modal {
+  background: white; width: 380px; border-radius: 20px;
+  box-shadow: 0 15px 35px rgba(0,0,0,0.3);
+  overflow: hidden; animation: popIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+.modal-header {
+  padding: 15px 20px; background: #f8f9fa;
+  border-bottom: 1px solid #eee; text-align: center;
+}
+
+.invite-list { padding: 20px; max-height: 50vh; overflow-y: auto; }
+
+.invite-card {
+  background: #fff; border: 1px solid #e0e0e0; border-radius: 12px;
+  padding: 15px; margin-bottom: 15px; text-align: center;
+}
+
+/* 버튼 그룹 */
+.btn-group {
+  display: flex; gap: 10px; margin-top: 15px;
+}
+
+.btn-group button {
+  flex: 1; padding: 10px; border: none; border-radius: 8px;
+  font-weight: bold; cursor: pointer; transition: 0.2s;
+}
+
+.accept-btn { background: #4caf50; color: white; }
+.accept-btn:hover { background: #43a047; }
+
+.decline-btn { background: #eeeeee; color: #666; }
+.decline-btn:hover { background: #e0e0e0; }
+
+@keyframes popIn {
+  from { transform: scale(0.8); opacity: 0; }
+  to { transform: scale(1); opacity: 1; }
+}
+
+
+.type-tag {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 12px;
+  font-size: 0.75rem;
+  font-weight: bold;
+  margin-bottom: 8px;
+}
+.type-tag.invite { background: #e3f2fd; color: #1976d2; } /* 파란색 계열 */
+.type-tag.dm { background: #f3e5f5; color: #7b1fa2; }     /* 보라색 계열 */
+.type-tag.email { background: #fff0f6; color: #d6336c; } /* 핑크/레드 계열 */
+
+.msg-content {
+  background: #fdfdfd;
+  padding: 10px;
+  border-radius: 8px;
+  font-style: italic;
+  color: #555;
+  margin: 10px 0;
+}
 </style>
