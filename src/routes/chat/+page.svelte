@@ -31,21 +31,48 @@
 
   // 메시지창 요소를 참조하기 위한 변수
   let messageContainer = $state();
+  let lastScrollHeight = 0; // 이전 높이를 기억할 변수
 
   // 메시지 목록이 바뀔 때마다 스크롤을 맨 아래로 내림
   $effect(() => {
     // chatManager.messages가 변경되는 것을 감지
     const msgCount = chatManager.messages.length;
+
+    // messageContainer가 없으면(null이면) 아예 실행 안 함
+    // messageContainer가 인식되기도 전에 작동하면 에러가 발생했기 때문에 추가된 코드
+    if (!messageContainer) {
+      // console.log('messageContainer가 없어서 return합니다.')
+      return
+    };
     
-    if (messageContainer) {
+    if (messageContainer) { 
       // DOM 업데이트 후 실행되도록 약간의 여유를 줌
-      setTimeout(() => {
-        messageContainer.scrollTo({
-          top: messageContainer.scrollHeight,
-          behavior: 'smooth' // 부드럽게 스크롤
-        });
-      }, 50);
-    }
+      if (chatManager.isLoadingMore) {
+        // 🚀 [Case 1] 더보기로 데이터가 추가된 경우
+        const newHeight = messageContainer.scrollHeight;
+        const heightDifference = newHeight - lastScrollHeight;
+        
+        console.log("더 보기 위치로 고정시작합니다.")
+        // 늘어난 만큼만 아래로 밀어서 보던 위치 고정
+        messageContainer.scrollTop = heightDifference;
+        
+        // 처리가 끝났으니 스위치 OFF
+        // chatManager.isLoadingMore = false;
+      } else {
+        // 🚀 [Case 2] 새 메시지가 왔거나 방에 처음 들어온 경우
+        setTimeout(() => {
+          if (messageContainer) {
+            messageContainer.scrollTo({
+              top: messageContainer.scrollHeight,
+              behavior: 'smooth'
+            });
+          }
+        }, 50);
+      }
+
+      // 다음 비교를 위해 현재 높이 저장
+      lastScrollHeight = messageContainer.scrollHeight;
+      }
   });
 
   let heartbeatInterval;
@@ -133,6 +160,16 @@
         }
   }
 
+  // 메시지 더 보기 버튼 클릭시 호출 될 함수
+  async function handleLoadMore() { 
+    lastScrollHeight = messageContainer.scrollHeight; //버튼 누른시점 높이 저장
+    console.log('lastScrollHeight : ', lastScrollHeight)
+    chatManager.isLoadingMore = true
+ 
+    // 2. 데이터 더 가져오기
+    await chatManager.loadMore();    
+  }
+
   onMount(() => {
         init();
         return () => {
@@ -149,7 +186,7 @@
   <aside class="user-list">
     {#if !isLogged}
       <div class="login-container">
-        <h2>🚀 형님 메신저 로그인</h2>
+        <h2>🚀 메신저 로그인</h2>
         <input type="email" bind:value={email} placeholder="이메일 입력" />
         <input type="password" bind:value={password} placeholder="비밀번호 입력" />
         <button onclick={handleLogin}>접속하기</button>
@@ -160,7 +197,7 @@
       </div>
     {/if}
 
-    <div class="room-input-group" style="padding: 10px;">
+    <div class="room-input-group">
       <input bind:value={chatManager.newRoomTitle} placeholder="방 제목 입력..." />
       <button onclick={() => chatManager.createRoom()}>새 채팅방 만들기</button>
     </div>
@@ -227,6 +264,15 @@
 
       <div class="messages" bind:this={messageContainer} style="background: {chatManager.isMember ? '#f9f9f9' : '#eee'};">
         {#if chatManager.isMember}
+
+          {#if chatManager.hasMore}
+            <div class="load-more-container">
+              <button onclick={handleLoadMore} class="load-more-btn">
+                이전 메시지 50개 더 보기
+              </button>
+            </div>
+          {/if}
+
           {#each chatManager.messages as msg}
             <div class="message {msg.user === pb.authStore.model?.id ? 'mine' : ''}">
               <small>{msg.expand?.user?.name || msg.user?.slice(0,5)}</small>
@@ -302,8 +348,28 @@
     transform: scale(1.02);
   }
 
+  /* login */
+  .login-container input{
+    width: 88%;
+    padding: 12px; /* 위아래 폭 키움 */
+    font-size: 1rem; /* 글자 크기 키움 */
+    border: 1px solid #ddd;
+    border-radius: 6px;
+    outline: none;
+  }
+  .login-container button{
+    width: 100%;
+    padding: 10px;
+    background: #476efd; /* 밝은 초록색 */
+    color: white;
+    border: none;
+    border-radius: 6px;
+    font-weight: bold;
+    cursor: pointer;
+  }
     /* 2. 방 생성 영역 (입력칸 크게, 버튼 초록색) */
   .room-input-group {
+    padding: 10px;
     width: 100%;
     display: flex;
     flex-direction: column;
@@ -357,7 +423,7 @@
     padding: 10px;
     background: white; /* 목록은 흰색으로 대비 */
     border: 2px solid #2ecc71; /* 밝은 초록색 테두리 */
-    border-radius: 12px;
+    border-radius: 8px;
     /* min-height: 200px; */
     /* 🔥 중요: 고정 높이를 주지 말고, 부모 안에서 유연하게 작동하도록 설정 */
     margin-top: 10px;

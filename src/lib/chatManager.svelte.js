@@ -12,6 +12,17 @@ class ChatManager {
 
 	isInitialized = false  // 중복실행으로 인한, 예를 들어  방생성 한꺼번에 여러개 생기는 것 방지
 
+	msgCount = $state(50)
+	isLoadingMore = $state(false) // 메시지 더보기 중인지 알려주는 스위치
+	hasMore = $state(true) // 더 가져올 데이터가 있는 지 여부
+
+	// 방을 처음 클릭했을 때 실행하는 함수
+	async enterRoom(roomId) {
+		this.msgCount = 50; // 방 들어올 때 50개로 리셋
+		this.isLoadingMore = false; // 스위치 끄기
+		await this.loadMessages(roomId);
+	}
+
     // --- [유도된 상태 (Derived)] ---
 	// 현재 user가 선택한 방 객체
     get currentRoom() {
@@ -65,6 +76,10 @@ class ChatManager {
     createRoom = async ()=> {  
 		// input 태그가 있는 값을 바인딩해서 받을 때, this를 this.newRoomTitle이 아닌 input태그로 인식할 수 있으니, 화살표함수를 사용  
         if (!this.newRoomTitle.trim()) return alert("방 제목을 입력하세요!");
+
+		if (!pb.authStore.isValid){
+			alert("로그인 먼저 해주세요.")
+		}
 
 		// 🛡️ 서버에 쏘기 전에 내 리스트에서 이름 중복 체크!
 		const isDuplicate = this.rooms.some(r => r.title === this.newRoomTitle.trim());
@@ -165,19 +180,23 @@ class ChatManager {
     async loadMessages(roomId) {
 		if (!roomId) return;
 		this.activeRoomId = roomId;
-		
+				
 		// 🔥 1. 여기서 activeRoomId를 직접 바꾸지 마세요. (이미 탭 클릭 시 바뀌어 있음)
 		// 🔥 2. 멤버가 아니면 시도도 하지 않음
 		if (!this.isMember) return;
 
 		try {
-			const list = await pb.collection("messages").getList(1, 50, {
-				filter: `room = "${roomId}"`,
-				sort: 'created',
-				expand: 'user',
-				requestKey: null // 👈 이게 있어야 중복 요청 거절을 안 당합니다!
+			// 1. 최근 것부터 msgCount만큼 가져옴 (최신이 0번 인덱스에 옴)
+			const result = await pb.collection("messages").getList(1, this.msgCount, {
+			filter: `room = "${roomId}"`,
+			sort: "-created", 
+			expand: "user",
 			});
-			this.messages = list.items;
+
+			// 2. 화면엔 옛날게 위, 최신게 아래로 가야 하니 뒤집어줌
+			this.messages = result.items.reverse();
+			// 3. 전체 개수랑 비교해서 버튼 보여줄지 결정
+			this.hasMore = result.totalItems > this.messages.length;
 			
 			// 로드 성공 후 구독 시작
 			this.subscribeMessages(); 
@@ -185,6 +204,17 @@ class ChatManager {
 			if (err.isAbort) return;
 			console.error("메시지 로드 에러", err);
 		}
+	}
+
+	async loadMore() {
+		if (!this.hasMore) {
+		alert("더 이상 불러올 메시지가 없습니다, 형님!");
+		return;
+		}
+
+		// 개수만 50개 늘리고 다시 로드! 
+		this.msgCount += 50;
+		await this.loadMessages(this.activeRoomId);
 	}
 
 	// 1. 메시지 실시간 구독 메서드
@@ -218,6 +248,8 @@ class ChatManager {
 	// 1. 방 나가기 (멤버 목록에서 나를 제거)
 	leaveRoom = async () => {
 		if (!confirm("이 방에서 나가시겠습니까?")) return;
+
+		this.isLoadingMore = false;
 		
 		try {
 			const userId = pb.authStore.model.id;
