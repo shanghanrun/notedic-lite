@@ -9,7 +9,7 @@ class ChatManager {
     newMessage = $state("");
     newRoomTitle = $state("");
     users = $state([]);
-    onlineMap = $state({});
+    onlineStatusMap = $state({});
 
 	isInitialized = false  // 중복실행으로 인한, 예를 들어  방생성 한꺼번에 여러개 생기는 것 방지
 
@@ -72,10 +72,10 @@ class ChatManager {
             }
         });
 
-		pb.collection('online_status').subscribe('*', ({ action, record }) => {
-			// 누군가의 상태가 바뀌면 맵을 즉시 업데이트 (반응성)
-			this.onlineStatusMap[record.userId] = record;
-		});
+		// pb.collection('online_status').subscribe('*', ({ action, record }) => {
+		// 	// 누군가의 상태가 바뀌면 맵을 즉시 업데이트 (반응성)
+		// 	this.onlineStatusMap[record.userId] = record;
+		// }); // init()와 중복이라서 지운다.
 
 		// 🔥 [추가] 초대장(invitation) 실시간 구독 시작!
 		await pb.collection("invitation").unsubscribe("*");
