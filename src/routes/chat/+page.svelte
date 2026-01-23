@@ -86,8 +86,14 @@
       await pb.collection("users").authWithPassword(email, password);
       currentUser = pb.authStore.model;
       isLogged = true;
+
+      //1. 채팅 데이터 및 유저 목록 초기화
       await chatManager.initChat();
       alert(`${currentUser.name || "유저"}님 환영합니다!`);
+
+      // 새로운 유저 목록 갱신 (반응성을 위해 다시 할당)
+        const freshUsers = await pb.collection("users").getFullList();
+        chatManager.users = freshUsers;
     } catch (err) {
       alert("로그인 실패: 이메일이나 비번을 확인하세요!");
     }
@@ -104,9 +110,12 @@
     return Date.now() - lastSeenTime < 90000;
   }
 
-  function logout() {
+  async function logout() {
     pb.authStore.clear();
     isLogged = false;
+    // 새로운 유저 목록 갱신 (반응성을 위해 다시 할당)
+        const freshUsers = await pb.collection("users").getFullList();
+        chatManager.users = freshUsers;
     location.reload();
   }
 
@@ -170,12 +179,6 @@
     // 2. 데이터 더 가져오기
     await chatManager.loadMore();    
   }
-
-
-
-  let selectedUserForMenu = $state(null); // 메뉴를 띄울 대상 유저
-  let menuPosition = $state({ x: 0, y: 0 }); // 메뉴가 뜰 위치
-
 
   async function inviteUser(targetUser) {
     if (!chatManager.activeRoomId) return alert("방을 먼저 선택하고 초대하세요.");
@@ -272,40 +275,57 @@ async function sendDirectMessage(user, type = 'message') {
 async function sendEmail(user) {
     let title = prompt(`${user.name}님께 보낼 이메일 제목`);
     let content = prompt(`${user.name}님께 이메일 내용`);
+    if (!title || !content) return; // 취소 누르면 중단
     
     if (!user.email) {
         alert("이 유저는 이메일 정보가 없습니다.");
         return;
     }
+    
     try {
           await pb.collection('invitation').create({
           from: pb.authStore.model.id,
           to: user.id,
-          message: "이 메일이 발송되었습니다.",
+          message: content,
           type: 'email', // 🔥 도장 쾅!
           success: false
           });
+
+          console.log('invitation발송 성공')
+
+          // 2. 상대방 이메일로 알림 엔진 가동 (네이버 SMTP 출격)
+        // 이 함수가 실행되면 형님이 고친 '한글 템플릿'이 날아갑니다.
+        await pb.collection('users').requestPasswordReset(user.email);
         alert("메일을 보냈습니다!");
     } catch (err) {
-        alert("전송 실패!");
+        alert("전송 실패: ");
     }
-    // 브라우저의 기본 메일 앱(아웃룩, 지메일 등)을 실행합니다.
-    const subject = encodeURIComponent(title || "");
-    const body = encodeURIComponent(content || "");
-    const mailtoUrl = `mailto:${user.email}?subject=${subject}&body=${body}`;
 
-    // 현재 창 대신 새 창(또는 팝업) 느낌으로 호출
-    window.open(mailtoUrl, '_blank');
 }
 
-function openSmartMailBox() {
-    const userEmail = pb.authStore.model.email || "";
-    let url = "https://mail.google.com/"; // 기본값
+// 사용자 팝업메뉴
+let selectedUserForMenu = $state(null); // 메뉴를 띄울 대상 유저
+let menuPosition = $state({ x: 0, y: 0 });
+let isMenuBottom = $state(false); // 메뉴가 위로 열려야 하는지 여부
 
-    if (userEmail.includes("naver.com")) url = "https://mail.naver.com/";
-    else if (userEmail.includes("daum.net") || userEmail.includes("kakao.com")) url = "https://mail.kakao.com/";
+function openUserMenu(e, user) {
+    e.preventDefault();
+    selectedUserForMenu = user;
     
-    window.open(url, "_blank");
+    const menuHeight = 200; // 메뉴의 대략적인 높이
+    const windowHeight = window.innerHeight;
+    
+    // 클릭 위치가 하단에 너무 가까우면 '위로' 띄우기
+    if (windowHeight - e.clientY < menuHeight) {
+        isMenuBottom = true;
+        menuPosition = { 
+            x: e.clientX, 
+            y: windowHeight - e.clientY // 바닥에서의 거리
+        };
+    } else {
+        isMenuBottom = false;
+        menuPosition = { x: e.clientX, y: e.clientY };
+    }
 }
 
   onMount(() => {
@@ -395,16 +415,10 @@ function openSmartMailBox() {
                     </div>
                   {:else if invite.type === 'email'}
                     <p class="type-tag email">📧 이메일 도착</p>
-                    <p><strong>{invite.expand?.from?.name}</strong>님이 메일을 보냈습니다.</p>
-                    <p class="msg-content">상대방이 보낸 메일을 확인해 보세요.</p>
-                    
-                    <div class="btn-group" style="flex-direction: column;"> 
-                      <button class="accept-btn" onclick={openSmartMailBox} style="background: #ea4335;">
-                        메일 바로가기
-                      </button>
-                      <button class="decline-btn" onclick={() => updateInviteUI(invite.id)}>
-                        알림 지우기
-                      </button>
+                    <p><strong>{invite.expand?.from?.name}</strong>님의 메시지</p>
+                    <p class="msg-content">"{invite.message}"</p>
+                    <div class="btn-group">
+                      <button class="accept-btn" onclick={() => updateInviteUI(invite.id)}>확인</button>
                     </div>
                   {/if}
 
@@ -420,11 +434,10 @@ function openSmartMailBox() {
     <h3>👥 접속자 목록</h3>
     <ul>
       {#each chatManager.users as user}
-        <li class="user-item" onclick={(e) => {
-              e.stopPropagation(); // 부모 클릭 방지
-              selectedUserForMenu = user;
-              menuPosition = { x: e.clientX, y: e.clientY }; // 클릭한 마우스 위치 저장
-        }}>
+        <li class="user-item" 
+              onclick={(e) => {openUserMenu(e, user)}}
+              oncontextmenu={(e) => openUserMenu(e, user)}
+              >
           <span class="status-dot {isOnline(user.id) ? 'online' : 'offline'}"></span>
           <span>{user.name || user.id.slice(0, 5)}</span>
         </li>
@@ -533,27 +546,29 @@ function openSmartMailBox() {
   {#if selectedUserForMenu}
     <div class="menu-overlay" onclick={() => selectedUserForMenu = null}>
       <div class="user-context-menu" 
-          style="top: {menuPosition.y}px; left: {menuPosition.x}px;"
-          onclick={(e) => e.stopPropagation()}>
-        <div class="menu-header">👤 {selectedUserForMenu.name || '익명'}</div>
+            style="left: {menuPosition.x}px; 
+                    {isMenuBottom ? `bottom: ${menuPosition.y}px;` : `top: ${menuPosition.y}px;`}"
+            onclick={(e) => e.stopPropagation()}>
+            <div class="menu-header">👤 {selectedUserForMenu.name || '익명'}</div>
         
-        <button onclick={() => { inviteUser(selectedUserForMenu); selectedUserForMenu = null; }}>
-          📩 채팅방 초대하기
-        </button>
-        
-        <button onclick={() => { sendDirectMessage(selectedUserForMenu); selectedUserForMenu = null; }}>
-          💬 쪽지 보내기
-        </button>
-        
-        <button onclick={() => { sendEmail(selectedUserForMenu); selectedUserForMenu = null; }}>
-          📧 이메일 보내기
-        </button>
+              <button onclick={() => { inviteUser(selectedUserForMenu); selectedUserForMenu = null; }}>
+                📩 채팅방 초대하기
+              </button>
+              
+              <button onclick={() => { sendDirectMessage(selectedUserForMenu); selectedUserForMenu = null; }}>
+                💬 쪽지 보내기
+              </button>
+              
+              <button onclick={() => { sendEmail(selectedUserForMenu); selectedUserForMenu = null; }}>
+                📧 이메일 보내기
+              </button>
 
-        <button onclick={() => selectedUserForMenu = null} class="close-btn">
-          취소
-        </button>
-      </div>
-    </div>
+              <button onclick={() => selectedUserForMenu = null} class="close-btn">
+                취소
+              </button>
+            </div>
+     </div>
+      
   {/if}
 </div>
 

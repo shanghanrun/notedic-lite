@@ -54,7 +54,6 @@ class ChatManager {
     // --- [메서드 (함수들)] ---
 
     initChat= async()=> {
-
         // 초기 로드 시 active=true인 방만 가져오는 게 깔끔할 수 있습니다.
         this.rooms = await pb.collection("rooms").getFullList({ 
             filter: "active = true",
