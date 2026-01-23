@@ -108,7 +108,7 @@
     if (userIdToCheck === pb.authStore.model?.id) return true;
     
     // online_status 데이터에서 해당 유저의 필드값만 바로 확인
-    const status = chatManager.onlineMap[userIdToCheck]; 
+    const status = chatManager.onlineStatusMap[userIdToCheck]; 
     return status?.is_online === true;
   }
 
@@ -148,7 +148,7 @@
             await chatManager.initChat();
 
             pb.collection("online_status").subscribe("*", ({ action, record }) => {
-                chatManager.onlineMap = { ...chatManager.onlineMap, [record.userId]: record };
+                chatManager.onlineStatusMap = { ...chatManager.onlineStatusMap, [record.userId]: record };
             });
 
             // pb.collection("messages").subscribe("*", ({ action, record }) => {
