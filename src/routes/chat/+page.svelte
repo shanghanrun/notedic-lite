@@ -113,17 +113,30 @@
   }
 
   async function logout() {
-    // 1. 서버에 나 나갔다고 알림 (다른 사람 화면에서 즉시 사라짐)
-    const statusRecord = await pb.collection('online_status').getFirstListItem(`userId="${currentUser.id}"`);
-    await pb.collection('online_status').update(statusRecord.Id, { 
-        is_online: false 
-    });
-    pb.authStore.clear();
-    isLogged = false;
-    // 새로운 유저 목록 갱신 (반응성을 위해 다시 할당)
-        // const freshUsers = await pb.collection("users").getFullList();
-        // chatManager.users = freshUsers;
-    location.reload();
+    try {
+        // 1. 현재 로그인된 유저 정보가 있는지 확인
+        if (pb.authStore.model?.id) {
+            // 2. online_status 컬렉션에서 userId가 내 ID인 레코드를 딱 하나 가져옵니다.
+            const statusRecord = await pb.collection("online_status").getFirstListItem(
+                `userId = "${pb.authStore.model.id}"`
+            );
+
+            // 3. 찾은 레코드의 진짜 id(예: yfqwwy...)를 사용해 오프라인 처리합니다.
+            if (statusRecord?.id) {
+                await pb.collection('online_status').update(statusRecord.id, { 
+                    is_online: false 
+                });
+            }
+        }
+    } catch (err) {
+        // 에러가 나더라도 로그아웃 처리는 계속 진행해야 화면이 꼬이지 않습니다.
+        console.error("오프라인 전환 실패:", err);
+    } finally {
+        // 4. 어떤 상황에서도 로컬 인증 정보는 지우고 새로고침
+        pb.authStore.clear();
+        isLogged = false;
+        location.reload();
+    }
   }
 
   async function updateMyStatus() {
@@ -280,9 +293,10 @@ async function sendDirectMessage(user, type = 'message') {
 
 
 async function sendEmail(user) {
-    let title = prompt(`${user.name}님께 보낼 이메일 제목`);
+    // let title = prompt(`${user.name}님께 보낼 이메일 제목`);
     let content = prompt(`${user.name}님께 이메일 내용`);
-    if (!title || !content) return; // 취소 누르면 중단
+    // if (!title || !content) return; // 취소 누르면 중단
+    if (!content) return; // 취소 누르면 중단
     
     if (!user.email) {
         alert("이 유저는 이메일 정보가 없습니다.");
