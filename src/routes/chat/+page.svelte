@@ -114,8 +114,8 @@
     pb.authStore.clear();
     isLogged = false;
     // 새로운 유저 목록 갱신 (반응성을 위해 다시 할당)
-        const freshUsers = await pb.collection("users").getFullList();
-        chatManager.users = freshUsers;
+        // const freshUsers = await pb.collection("users").getFullList();
+        // chatManager.users = freshUsers;
     location.reload();
   }
 
