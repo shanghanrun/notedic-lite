@@ -94,6 +94,8 @@
       // 새로운 유저 목록 갱신 (반응성을 위해 다시 할당)
         const freshUsers = await pb.collection("users").getFullList();
         chatManager.users = freshUsers;
+
+        location.reload(); // 화면 새로 고침이 되어야 me:정보가 반영된다.
     } catch (err) {
       alert("로그인 실패: 이메일이나 비번을 확인하세요!");
     }
