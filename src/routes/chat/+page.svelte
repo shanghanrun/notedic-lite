@@ -99,7 +99,7 @@
             is_online: true 
         });
 
-      // location.reload(); // 화면 새로 고침이 되어야 me:정보가 반영된다.
+      location.reload(); // 화면 새로 고침이 되어야 me:정보가 반영된다.
     } catch (err) {
       alert("로그인 실패: 이메일이나 비번을 확인하세요!");
     }
