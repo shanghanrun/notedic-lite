@@ -363,7 +363,7 @@ function openUserMenu(e, user) {
     <div class="my-profile-container">
       <div class="my-info">
         <span class="status-dot online"></span>
-        <span class="user-name">me: {chatManager.myName}</span>
+        <span class="user-name">me: {chatManager.myName} </span>
       </div>
       
       <button 

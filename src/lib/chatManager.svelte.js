@@ -42,7 +42,8 @@ class ChatManager {
 
 
 	// 내상태와 초대알림 위해
-	myName = $state(pb.authStore.model?.name || "나"); 
+	myName = $state(pb.authStore.model?.name || "로그인 필요함"); 
+	myEmail = $state(pb.authStore.model?.email || "" )
 	hasNewInvite =$state(false);
 	hasNewNotification = $state(false); // 새로운 알림이 있는지 여부
 	notificationMessage = $state(""); // 팝업에 띄울 내용
