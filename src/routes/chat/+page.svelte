@@ -91,11 +91,13 @@
       await chatManager.initChat();
       alert(`${currentUser.name || "유저"}님 환영합니다!`);
 
-      // 새로운 유저 목록 갱신 (반응성을 위해 다시 할당)
-        const freshUsers = await pb.collection("users").getFullList();
-        chatManager.users = freshUsers;
+      // 내 온라인 상태를 TRUE로 업데이트
+      const statusRecord = await pb.collection('online_status').getFirstListItem(`userId="${currentUser.id}"`);
+        await pb.collection('online_status').update(statusRecord.id, { 
+            is_online: true 
+        });
 
-        location.reload(); // 화면 새로 고침이 되어야 me:정보가 반영된다.
+      // location.reload(); // 화면 새로 고침이 되어야 me:정보가 반영된다.
     } catch (err) {
       alert("로그인 실패: 이메일이나 비번을 확인하세요!");
     }
@@ -105,14 +107,17 @@
     if (!userIdToCheck) return false;
     if (userIdToCheck === pb.authStore.model?.id) return true;
     
-    const lastSeenStr = chatManager.onlineMap[userIdToCheck];
-    if (!lastSeenStr) return false;
-
-    const lastSeenTime = new Date(lastSeenStr).getTime();
-    return Date.now() - lastSeenTime < 90000;
+    // online_status 데이터에서 해당 유저의 필드값만 바로 확인
+    const status = chatManager.onlineStatusMap[userIdToCheck]; 
+    return status?.is_online === true;
   }
 
   async function logout() {
+    // 1. 서버에 나 나갔다고 알림 (다른 사람 화면에서 즉시 사라짐)
+    const statusRecord = await pb.collection('online_status').getFirstListItem(`userId="${currentUser.id}"`);
+    await pb.collection('online_status').update(statusRecord.Id, { 
+        is_online: false 
+    });
     pb.authStore.clear();
     isLogged = false;
     // 새로운 유저 목록 갱신 (반응성을 위해 다시 할당)

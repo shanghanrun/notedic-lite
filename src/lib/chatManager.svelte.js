@@ -72,6 +72,11 @@ class ChatManager {
             }
         });
 
+		pb.collection('online_status').subscribe('*', ({ action, record }) => {
+			// 누군가의 상태가 바뀌면 맵을 즉시 업데이트 (반응성)
+			this.onlineStatusMap[record.userId] = record;
+		});
+
 		// 🔥 [추가] 초대장(invitation) 실시간 구독 시작!
 		await pb.collection("invitation").unsubscribe("*");
 		pb.collection("invitation").subscribe("*", ({ action, record }) => {
