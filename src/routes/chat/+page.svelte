@@ -85,15 +85,17 @@
       pb.authStore.clear();
       await pb.collection("users").authWithPassword(email, password);
       currentUser = pb.authStore.model;
-      isLogged = true;
+      isLogged = true;      
 
       //1. 채팅 데이터 및 유저 목록 초기화
       await chatManager.initChat();
       alert(`${currentUser.name || "유저"}님 환영합니다!`);
 
       // 내 온라인 상태를 TRUE로 업데이트
-      const statusRecord = await pb.collection('online_status').getFirstListItem(`userId="${currentUser.id}"`);
-        await pb.collection('online_status').update(statusRecord.id, { 
+      const statusRecord = await pb.collection("online_status").getFirstListItem(
+                `userId = "${pb.authStore.model.id}"`
+            );
+      await pb.collection('online_status').update(statusRecord.id, { 
             is_online: true 
         });
 
@@ -384,7 +386,8 @@ function openUserMenu(e, user) {
     <div class="my-profile-container">
       <div class="my-info">
         <span class="status-dot online"></span>
-        <span class="user-name">me: {chatManager.myName} </span>
+        <span class="user-name">me: {pb.authStore.model?.name || "로그인 필요"} </span>
+        <!-- <span class="user-name">me: {chatManager.myName} </span> -->
       </div>
       
       <button 
