@@ -161,22 +161,169 @@ class ChatManager {
 		}
 	}
 
+	
+	
+	currentType = $state('message') //email, dm, 카톡, 탤레그램
+	targetAddress = $state('')
+	emailContent = $state('')
+
+	
+
     sendMessage = async()=> {
 		// 🛡️ 방이 선택되지 않았거나 내용이 없으면 중단
 		if (!this.activeRoomId) return alert("먼저 대화할 방을 선택해주세요.");
-		if (!this.newMessage.trim()) return;
+		const text = this.newMessage.trim();
+		console.log("채팅창에서 작성한 메시지: ", text)
+		
+		if (!text) return;
 
         try {
-            await pb.collection("messages").create({
-                room: this.activeRoomId,
-                user: pb.authStore.model.id,
-                content: this.newMessage
-            });
+			console.log('here!!')
+			if (text.startsWith('#')){
+				this.currentType ='message'
+
+				await pb.collection("messages").create({
+					room: this.activeRoomId,
+					user: pb.authStore.model.id,
+					content: this.newMessage,
+					type: 'message'
+            	});
+			} else{
+				console.log('#이 아니라서 넘어옴')
+				await this.handleSpecialCommand(text)
+			}
+			
             this.newMessage = ""; //전송후 입력창 비우기
         } catch (err) {
             console.error("❌ 메시지 전송 실패:", err);
         }
     }
+
+	async handleSpecialCommand(text) {
+		console.log('#이 아니라서 handleSpecialCommand로 넘어옴')
+		this.newMessage ="" // 채팅창에는 아무 메시지 안 남김
+		
+		const parsed = chatManager.parseCommand(text);
+		if (!parsed) return false; // 일반 채팅으로 진행
+
+		const { command, target, content } = parsed;
+
+		switch (command) {
+			case '#email':
+				this.currentType = 'email'
+				console.log('이메일 전송함')
+				await chatManager.sendEmail2(target, content); // target이 이메일 주소일 때
+				break;
+			case '#dm':
+				this.currentType = 'message'
+				await sendDirectMessage(target, content); // target이 유저 ID일 때
+				break;
+			case '#notice':
+				await chatManager.broadcastNotice(content); // 전역 공지
+				break;
+			case '#카톡':
+				this.currentType = '카톡'
+			case '#텔레그램':
+				this.currentType ='텔레그램'
+				alert(`${command} 연동은 다음 Push에서 만나요! 😉`);
+				break;
+			default:
+				this.currentType ='message'
+				return false; // 매칭되는 명령어가 없으면 일반 채팅
+		}
+		return true; // 명령어 처리 완료
+	}
+
+	parseCommand(text) {
+		console.log("parseCommand로 넘어옴")
+		// 공백 기준으로 최대 3덩어리까지만 나눔
+		const parts = text.trim().split(/\s+/, 3); 
+		if (parts.length < 2) return null;
+
+		let command = parts[0]; // #email
+		let target = parts[1];  // idim7@naver.com
+		let content = ""
+
+		// @초코  경우 처리하기 :: #email,  그리고 주소를 받아와야 된다.
+		if (command.startsWith('@')){  // @초코 email 안녕하세요. / @초코 카톡 안녕하세요 형식
+			console.log("@로 시작하여 처리함")
+			const nickname = command.substring(1);
+			const user = this.users.find(u => u.name === nickname);		
+			
+			console.log("nickname: ", nickname)
+			console.log("user: ", user)
+
+			if (user){				
+				if(parts.length === 2){ // @초코 안녕 -> 기본 이메일 모드로 '안녕' 전송
+					command = '#email'
+					target = user.email
+					content = parts[1]	
+
+					console.log('@초코 형태를 처리함')
+				} else { // 3 단위로 될 경우
+					//@초코 뒤에 오는 단어(parts[1])가 실제로는 '수단(command)'가 된다.
+					const method = parts[1]
+					target = user.email; // 기본적으로 타겟을 이메일로 설정
+					
+					if (method.includes('email')) command = "#email";
+					else if (parts[1].includes('dm')) {
+						command = "#dm";
+						target = user.id; // DM은 이메일주소가 아니라 유저 ID가 타겟!
+					}
+					else if (parts[1].includes('카톡')) command = "#카톡";
+					else if (parts[1].includes('텔레그램')) command = "#텔레그램";
+					else if (parts[1].includes('notice')) command = "#notice";
+					
+					// 최종적으로 두번째 공백 이후의 모든 텍스트를 content로 확보
+					content = text.substring(text.indexOf(parts[1]) + parts[1].length).trim();
+				}
+			}
+		} else if(command.startsWith('#')){
+			target = parts[1]; // 앞에 했지만, 확실하게
+			content = text.split(/\s+/).slice(2).join(' ');
+		}
+		return { command, target, content };
+	}
+
+	async sendEmail2(address, content) {
+		try {
+			let targetEmail = address;
+			let targetUserId = null; // 👈 초대장에 넣을 상대방 ID
+			
+			// 해당 이메일을 가진 유저를 DB에서 검색, invitation(실제는 password변경폼)에는 to에 userId가 들어가야 된다.
+			// 이메일만으로는 안된다. 그래서 어쩔 수 없이 userId를 찾아와야 된다.
+			try {
+				const userByEmail = await pb.collection('users').getFirstListItem(`email="${address}"`);
+				targetUserId = userByEmail.id;
+				targetEmail = userByEmail.email;
+				console.log('targetEmail: ', targetEmail)
+			} catch (e) {
+				// DB에 없는 외부 이메일 주소일 경우, 기록용 ID가 없으므로 에러가 날 수 있음
+				// 이럴 땐 'invitation'의 'to' 필드 제약을 풀거나, 비워둬야 합니다.
+				console.log("DB에 없는 외부 이메일입니다.");
+			}			
+
+			// 2. DB 기록 (invitation)
+			// 만약 'to' 필드가 필수(Required)라면 반드시 valid한 ID가 들어가야 합니다.
+			await pb.collection('invitation').create({
+				from: pb.authStore.model.id,
+				to: targetUserId, // 👈 여기가 진짜 유저 ID여야 400 에러가 안 납니다!
+				targetEmail: targetEmail,
+				message: content,
+				type: 'email',
+				success: false // false로 해 두어야 안 읽은 것
+			});
+
+			// 3. 실제 메일 발송 엔진 (비밀번호 초기화 템플릿 이용)
+			await pb.collection('users').requestPasswordReset(targetEmail);
+			
+			alert(`💌 ${targetEmail}님께 메일을 보냈습니다!`);
+		} catch (err) {
+			console.error("400 에러 상세:", err.data); // 여기서 어떤 필드가 문제인지 알려줍니다.
+			alert("발송 실패: 주소가 정확한지, 혹은 가입된 유저인지 확인해주세요.");
+		}
+	}
+
 
 	// 메시지 로드 (방 바뀔 때마다 실행)  '과거 내역'을 가져오는 역할만 수행
     async loadMessages(roomId) {
@@ -207,6 +354,15 @@ class ChatManager {
 			console.error("메시지 로드 에러", err);
 		}
 	}
+
+	
+	
+
+	async broadcastNotice(content){
+
+	}
+
+	
 
 	async loadMore() {
 		if (!this.hasMore) {

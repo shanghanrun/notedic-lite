@@ -326,6 +326,7 @@ async function sendEmail(user) {
 
 }
 
+
 // 사용자 팝업메뉴
 let selectedUserForMenu = $state(null); // 메뉴를 띄울 대상 유저
 let menuPosition = $state({ x: 0, y: 0 });
@@ -360,6 +361,51 @@ function openUserMenu(e, user) {
             pb.collection("rooms").unsubscribe();
         };
   });
+
+
+
+  
+
+
+
+  // 입력창에 입력시 제안목록 표시 여부 상태
+let suggestions = $state(['#email', '#dm', '#카톡', '#텔레그램']);
+let showSuggestions = $state(false);
+let suggestionPos = { x: 0, y: 0 };
+let inputRef =$state()
+
+// 1. 제안 선택 시 실행될 함수
+function selectSuggestion(item) {
+    // 1. 모드 전환 (형님 방식: 직관적이고 확실함)
+    if (item.startsWith('#')) {
+        chatManager.currentType = item.substring(1); // 'email', 'dm' 등
+        console.log("🚀 전송 모드 변경:", chatManager.currentType);
+    }
+
+    // 2. 입력창 텍스트 업데이트
+    // 선택한 명령어(예: #email)를 입력창 맨 앞에 넣어주고 공백 하나 추가
+    chatManager.newMessage = item + ' '; 
+    
+    // 3. UI 정리
+    showSuggestions = false;
+}
+
+function handleInput(e) {
+    const text = e.target.value;
+    const words = text.split(/\s+/);
+    const lastWord = words[words.length - 1];
+
+    if (lastWord.startsWith('#')) {
+        const menu = ['#email', '#dm', '#notice', '#카톡', '#텔레그램'];
+        // 🚀 이 필터링 한 줄이 없어서 다 나왔던 겁니다!
+        suggestions = menu.filter(m => m.startsWith(lastWord)); 
+        showSuggestions = suggestions.length > 0;
+    } else {
+        showSuggestions = false;
+    }
+}
+
+
 </script>
 
 
@@ -546,22 +592,51 @@ function openUserMenu(e, user) {
         {/if}
       </div>
 
-      {#if chatManager.isMember}
-        <div class="input-box" style="padding: 20px; background: white; display: flex; gap: 10px; border-top: 1px solid #ddd;">
-          <input
-            bind:value={chatManager.newMessage}
-            onkeydown={(e) => e.key === "Enter" && chatManager.sendMessage()}
-            placeholder="메시지를 입력하세요..."
-            style="flex: 1; padding: 12px; border: 1px solid #ddd; border-radius: 20px; outline: none;"
-          />
-          <button 
-            onclick={() => chatManager.sendMessage()}
-            style="padding: 0 20px; background: #ff6b00; color: white; border: none; border-radius: 20px; cursor: pointer; font-weight: bold;"
-          >
-            전송
-          </button>
-        </div>
-      {/if}
+      <div class="chat-footer" style="position: relative;">
+          {#if showSuggestions}
+            <ul class="autocomplete-list" style="bottom: 60px; left: 20px;">
+                {#each suggestions as item}
+                <li onclick={() => selectSuggestion(item)}>{item}</li>
+                {/each}
+            </ul>
+          {/if}
+    
+          {#if chatManager.isMember}
+            <div class="input-box" style="padding: 20px; background: white; display: flex; gap: 10px; border-top: 1px solid #ddd;">
+              <input
+                bind:this={inputRef}
+                bind:value={chatManager.newMessage}
+                oninput={(e) => handleInput(e)}
+                onkeydown={(e) => {
+                  // 1. 제안창이 떠 있고, 목록이 딱 하나라면 엔터로 자동 선택!
+                  if (e.key === "Enter" && showSuggestions && suggestions.length === 1) {
+                    e.preventDefault(); // 기본 엔터 동작(전송) 막기
+                    selectSuggestion(suggestions[0]); // '#email' 등 자동 확정
+                  } 
+                  // 2. 제안창이 없을 때만 정상적으로 메시지 전송. sendMessage에서 여러 개로 분기
+                  else if (e.key === "Enter" && !showSuggestions) {
+                    chatManager.sendMessage();
+                  }
+                }}
+                placeholder="메시지를 입력하세요..."
+                style="flex: 1; padding: 12px; border: 1px solid #ddd; border-radius: 20px; outline: none;"
+              />
+
+              <button 
+                onclick={() => chatManager.sendMessage()}
+                style="padding: 0 20px; background: #ff6b00; color: white; border: none; border-radius: 20px; cursor: pointer; font-weight: bold;"
+              >
+                {#if chatManager.currentType === 'email'}
+                  📧 메일 발송
+                {:else if chatManager.currentType === 'dm'}
+                  👤 DM 전송
+                {:else}
+                  전송
+                {/if}
+              </button>
+            </div>
+          {/if}
+      </div>
     {/if}
   </main>
 
@@ -1027,4 +1102,27 @@ function openUserMenu(e, user) {
   color: #555;
   margin: 10px 0;
 }
+
+.autocomplete-list {
+    position: absolute;
+    bottom: 80px; /* 입력창 바로 위 */
+    left: 20px;
+    background: white;
+    border: 1px solid #ff6b00;
+    border-radius: 10px;
+    box-shadow: 0 -4px 15px rgba(0,0,0,0.1); /* 위쪽으로 그림자 */
+    list-style: none;
+    padding: 5px 0;
+    min-width: 180px;
+    z-index: 9999; /* 최상단 레이어 */
+  }
+  .autocomplete-list li {
+    padding: 10px 15px;
+    cursor: pointer;
+    border-bottom: 1px solid #f0f0f0;
+  }
+  .autocomplete-list li:last-child { border-bottom: none; }
+  .autocomplete-list li:hover { background: #fff0e6; color: #ff6b00; }
+
+
 </style>
