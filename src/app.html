@@ -4,6 +4,19 @@
 		<meta charset="utf-8" />
 		<meta name="viewport" content="width=device-width, initial-scale=1" />
 		%sveltekit.head%
+
+		<script src="https://t1.kakaocdn.net/kakao_js_sdk/2.7.0/kakao.min.js" crossorigin="anonymous"></script>
+		<script>
+			// SDK 로드 확인 및 초기화
+			window.addEventListener('load', () => {
+				if (window.Kakao) {
+					if (!window.Kakao.isInitialized()) {
+						window.Kakao.init('0a96fe3c6e16387fa69893959acc69f9'); // 형님의 키 입력!
+						console.log('카카오 초기화 상태:', window.Kakao.isInitialized());
+					}
+				}
+			});
+		</script>
 	</head>
 	<body data-sveltekit-preload-data="hover">
 		<div style="display: contents">%sveltekit.body%</div>
