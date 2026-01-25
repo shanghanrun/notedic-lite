@@ -19,6 +19,8 @@
         // 기본 데이터 로딩
         await indexSearchUI.fetchAllFromCollection('hani');
     });
+
+
 </script>
 
 {#if indexSearchUI.isLoading || indexSearchUI.isIndexing}

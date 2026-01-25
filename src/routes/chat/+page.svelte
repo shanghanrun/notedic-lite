@@ -405,6 +405,34 @@ function handleInput(e) {
     }
 }
 
+const shareSiteToKakao = () => {
+  const { Kakao, location } = window;
+  
+  if (!Kakao || !Kakao.isInitialized()) return;
+
+  Kakao.Share.sendDefault({
+    objectType: 'feed',
+    content: {
+      title: '하니스테이션 (Hani Station)',
+      description: '똑똑한 파일 검색과 힐링 음악이 있는 곳! 한번 구경 오세요.',
+      imageUrl: 'https://hani.chois.cloud/logo.png', // 형님 사이트의 대표 이미지 주소
+      link: {
+        mobileWebUrl: location.origin, // hani.chois.cloud 로 연결
+        webUrl: location.origin,
+      },
+    },
+    buttons: [
+      {
+        title: '사이트 방문하기',
+        link: {
+          mobileWebUrl: location.origin,
+          webUrl: location.origin,
+        },
+      },
+    ],
+  });
+};
+
 
 </script>
 
@@ -423,6 +451,10 @@ function handleInput(e) {
         <button onclick={logout}>로그아웃</button>
       </div>
     {/if}
+
+    <button class="share-btn" onclick={shareSiteToKako}>
+      <span class="icon">💬</span> 친구에게 공유하기
+    </button>
 
     <div class="room-input-group">
       <input bind:value={chatManager.newRoomTitle} placeholder="방 제목 입력..." />
