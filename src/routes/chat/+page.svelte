@@ -454,7 +454,7 @@ const shareSiteToKakao = () => {
 
     <button class="share-btn" onclick={shareSiteToKakao}>
       <span class="icon">💬</span> 친구에게 공유하기
-    </button>a
+    </button>
     <div class="room-input-group">
       <input bind:value={chatManager.newRoomTitle} placeholder="방 제목 입력..." />
       <button onclick={() => chatManager.createRoom()}>새 채팅방 만들기</button>
