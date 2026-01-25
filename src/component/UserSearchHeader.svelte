@@ -37,7 +37,9 @@
 				Home
 			</button>
 		{/if}
-        <a class="music" href="https://music.chois.cloud">음악감상</a>
+        <a href="https://music.chois.cloud" class="music-link">
+            음악감상 <span class="icon">&rarr;</span>
+        </a>
     </div>
 </div>
 
@@ -108,13 +110,25 @@
         background: #2ecc71; 
         color: white; 
     }
-    .music{
-        background:#30ef80;
-        border-radius: 4px;
-        padding: 4px;
+    .music-link {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        text-decoration: none;
+        color: #171717; /* 음악 느낌의 초록 계열 */
+        background: #cdd0cf;
+        padding: 8px 16px;
+        border-radius: 12px;
+        font-weight: 300;
+        font-size: 0.9rem;
+        transition: all 0.3s ease;
     }
-    .music:hover{
-        background:#27ae60;
+
+    .music-link:hover {
+        background: #aabcb2;
+        color:#2563eb;
+        font-weight: 500;
+        transform: translateX(5px); /* 오른쪽으로 슥 이동 */
     }
 
     /* 노트북이나 태블릿 등 화면이 작아질 때를 위한 '마법의 코드' */

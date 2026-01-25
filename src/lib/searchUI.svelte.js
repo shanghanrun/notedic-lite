@@ -213,6 +213,33 @@ class SearchUI {
         this.searchQuery = "";
         this.scrollTop = 0;
     }
+
+    clearFiles=()=>{
+        this.reset();
+        // this.files = [];
+        // this.searchQuery = "";
+        // this.scrollTop = 0;
+        
+        // [핵심] 파일 input 태그의 실제 value도 날려줘야, 
+        // 해당 input태그의 글자도 사라지고, 다시 같은 파일을 올려도 반응한다.
+        const fileInput = document.querySelector('input[type="file"]');
+        if (fileInput) fileInput.value = "";
+        
+        console.log("모든 파일 및 검색어 초기화 완료");
+    }
+    async saveAsDocx() {
+        if (!this.searchResults.length) return;
+        const children = [new Paragraph({ children: [new TextRun({ text: this.searchQuery, bold: true })] })];
+        Object.entries(this.groupedResults).forEach(([f, lines]) => {
+            children.push(new Paragraph({ children: [new TextRun({ text: `[${f}]`, bold: true })] }));
+            lines.forEach(l => children.push(new Paragraph(l)));
+        });
+        const blob = await Packer.toBlob(new Document({ sections: [{ children }] }));
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = `${this.searchQuery}.docx`;
+        a.click();
+    }
 }
 
 export const searchUI = new SearchUI();

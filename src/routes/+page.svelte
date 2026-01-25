@@ -14,8 +14,6 @@ onMount(() => {
 </script>
 
 <div class="admin-container">
-    
-
     <SideBar_FileImport />
 
     <main class="col main-content">
@@ -41,11 +39,13 @@ onMount(() => {
     /* 전체 레이아웃 스타일 */
     .admin-container { 
         display: grid; 
-        grid-template-columns: 400px 1fr; 
+        grid-template-columns: 300px 1fr; /* 좌측 300px 고정, 우측은 나머지 전부 */
+        /* grid-template-columns: 400px 1fr;  */
         gap: 20px; 
         padding: 20px; 
         height: 100vh; 
         box-sizing: border-box; 
+        display: grid;
     }
     .col { 
         background: white; 
