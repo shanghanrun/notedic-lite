@@ -37,6 +37,7 @@
 				Home
 			</button>
 		{/if}
+        <a class="music" href="https://music.chois.cloud">음악감상</a>
     </div>
 </div>
 
@@ -106,6 +107,14 @@
     .go-button:hover { 
         background: #2ecc71; 
         color: white; 
+    }
+    .music{
+        background:#30ef80;
+        border-radius: 4px;
+        padding: 4px;
+    }
+    .music:hover{
+        background:#27ae60;
     }
 
     /* 노트북이나 태블릿 등 화면이 작아질 때를 위한 '마법의 코드' */
