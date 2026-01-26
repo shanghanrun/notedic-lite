@@ -284,9 +284,13 @@ class ChatManager {
 			}
 		} else if(command.startsWith('#')){
 			if(parts.length=== 2){ // #명령과 내용만 있는 경우
-				target = this.user.name || "Hani Station"  
+				const userId = pb.authStore.model?.id;
+				const userName = pb.authStore.model?.name || pb.authStore.model?.username; 
+				target = userName || "Hani Station"  
 				//이때 target은 보내는 사람. 예를 들어, #카톡 안녕하세요.의 경우 보내는 사람이 생략됨
 				content = parts[1] // 두번째 덩어리가 내용이 된다.
+
+				console.log(`#명령어(생략형) 처리: 보낸이=${target}, 내용=${content}`);
 			} else{
 				target = parts[1]; // 앞에 했지만, 확실하게
 				content = text.split(/\s+/).slice(2).join(' ');
