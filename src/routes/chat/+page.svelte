@@ -1183,5 +1183,7 @@ const messageToKakao = () => {
   .autocomplete-list li:last-child { border-bottom: none; }
   .autocomplete-list li:hover { background: #fff0e6; color: #ff6b00; }
 
-
+  .share-btn{
+    background:yellow
+  }
 </style>
