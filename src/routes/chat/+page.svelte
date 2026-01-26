@@ -432,44 +432,7 @@ const shareSiteToKakao = () => {
     ],
   });
 };
-const messageToKakao = (user="", message="") => {
-  // 채팅창에서 [#카톡 이름 메시지] 형태로 카톡메시지 보낼 경우를 위해 함수기능 확장함 
-  const { Kakao, location } = window;
-  
-  if (!Kakao || !Kakao.isInitialized()) return;
 
-  // 인자가 없을 때만 prompt를 띄우고, 변수에 값을 할당함
-  let finalUser = user;
-  let finalMessage = message;
-  // 스코프 해결: if 블록 안에서 const로 선언하면 Kakao.Share 부분에서 그 값을 읽지 못하는 문제를 해결했습니다.
-
-  if (!finalUser || !finalMessage) {
-    finalUser = prompt("보내는 분의 이름(닉네임)을 적어주세요:") || "Hani Station";
-    finalMessage = prompt("전달할 메시지를 입력하세요:") || "초대 메시지";
-  }
-
-  Kakao.Share.sendDefault({
-    objectType: 'feed',
-    content: {
-      title: `${finalUser}의 메시지`,
-      description: finalMessage,
-      imageUrl: 'https://hani.chois.cloud/hani_logo.png', 
-      link: {
-        mobileWebUrl: location.origin, // hani.chois.cloud 로 연결
-        webUrl: location.origin,
-      },
-    },
-    buttons: [
-      {
-        title: '사이트 방문은 아래 링크로~',
-        link: {
-          mobileWebUrl: location.origin,
-          webUrl: location.origin,
-        },
-      },
-    ],
-  });
-};
 
 
 </script>
@@ -490,7 +453,7 @@ const messageToKakao = (user="", message="") => {
       </div>
     {/if}
 
-    <button class="kakao-share-btn" onclick={messageToKakao}>
+    <button class="kakao-share-btn" onclick={chatManager.messageToKakao}>
       <img src="https://developers.kakao.com/assets/img/about/logos/kakaotalksharing/kakaotalk_sharing_btn_medium.png" alt="카톡" />
       <span>메시지</span>
     </button>

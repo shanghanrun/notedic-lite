@@ -203,7 +203,7 @@ class ChatManager {
 		console.log('#이 아니라서 handleSpecialCommand로 넘어옴')
 		this.newMessage ="" // 채팅창에는 아무 메시지 안 남김
 		
-		const parsed = chatManager.parseCommand(text);
+		const parsed = this.parseCommand(text);
 		if (!parsed) return false; // 일반 채팅으로 진행
 
 		const { command, target, content } = parsed;
@@ -212,17 +212,19 @@ class ChatManager {
 			case '#email':
 				this.currentType = 'email'
 				console.log('이메일 전송함')
-				await chatManager.sendEmail2(target, content); // target이 이메일 주소일 때
+				await this.sendEmail2(target, content); // target이 이메일 주소일 때
 				break;
 			case '#dm':
 				this.currentType = 'message'
-				await sendDirectMessage(target, content); // target이 유저 ID일 때
+				await this.sendDirectMessage(target, content); // target이 유저 ID일 때
 				break;
 			case '#notice':
-				await chatManager.broadcastNotice(content); // 전역 공지
+				await this.broadcastNotice(content); // 전역 공지
 				break;
 			case '#카톡':
 				this.currentType = '카톡'
+				this.messageToKakao(target, content);
+				// 여기서 target은 사실상 보내는 사람 이름이다.
 			case '#텔레그램':
 				this.currentType ='텔레그램'
 				alert(`${command} 연동은 다음 Push에서 만나요! 😉`);
@@ -277,10 +279,18 @@ class ChatManager {
 					// 최종적으로 두번째 공백 이후의 모든 텍스트를 content로 확보
 					content = text.substring(text.indexOf(parts[1]) + parts[1].length).trim();
 				}
+			} else{
+				alert('해당 유저를 찾을 수 없습니다!');
 			}
 		} else if(command.startsWith('#')){
-			target = parts[1]; // 앞에 했지만, 확실하게
-			content = text.split(/\s+/).slice(2).join(' ');
+			if(parts.length=== 2){ // #명령과 내용만 있는 경우
+				target = this.user.name || "Hani Station"  
+				//이때 target은 보내는 사람. 예를 들어, #카톡 안녕하세요.의 경우 보내는 사람이 생략됨
+				content = parts[1] // 두번째 덩어리가 내용이 된다.
+			} else{
+				target = parts[1]; // 앞에 했지만, 확실하게
+				content = text.split(/\s+/).slice(2).join(' ');
+			}			
 		}
 		return { command, target, content };
 	}
@@ -461,6 +471,49 @@ class ChatManager {
 			console.error("방 폐쇄 실패:", err);
 		}
 	}
+
+
+	messageToKakao = (senderName="", message="") => {
+		// 채팅창에서 [#카톡 이름 메시지] 형태로 카톡메시지 보낼 경우를 위해 함수기능 확장함 
+		const { Kakao, location } = window;
+		
+		if (!Kakao || !Kakao.isInitialized()) {
+			console.error("카카오 SDK가 초기화되지 않았습니다.");
+			return;
+		}
+
+		// 인자가 없을 때만 prompt를 띄우고, 변수에 값을 할당함
+		let finalUser = senderName;
+		let finalMessage = message;
+		// 스코프 해결: if 블록 안에서 const로 선언하면 Kakao.Share 부분에서 그 값을 읽지 못하는 문제를 해결했습니다.
+
+		if (!finalUser || !finalMessage) {
+			finalUser = prompt("보내는 분의 이름(닉네임)을 적어주세요:") || "Hani Station";
+			finalMessage = prompt("전달할 메시지를 입력하세요:") || "초대 메시지";
+		}
+
+		Kakao.Share.sendDefault({
+			objectType: 'feed',
+			content: {
+			title: `${finalUser}의 메시지`,
+			description: finalMessage,
+			imageUrl: 'https://hani.chois.cloud/hani_logo.png', 
+			link: {
+				mobileWebUrl: location.origin, // hani.chois.cloud 로 연결
+				webUrl: location.origin,
+			},
+			},
+			buttons: [
+			{
+				title: '사이트 방문은 아래 링크로~',
+				link: {
+				mobileWebUrl: location.origin,
+				webUrl: location.origin,
+				},
+			},
+			],
+		});
+		};
 }
 
 export const chatManager = new ChatManager();
