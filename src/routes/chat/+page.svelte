@@ -1212,29 +1212,38 @@ const shareSiteToKakao = () => {
     transform: translateY(0);
   }
 
-  /* --- 모바일 반응형 추가 --- */
   @media (max-width: 768px) {
+    /* 1. 바디의 스크롤 봉쇄 해제 */
+    :global(body), :global(html) {
+      overflow: auto !important; 
+      height: auto !important;
+    }
+
     .chat-layout {
-      flex-direction: column; /* 가로 배열을 세로로 변경 */
-      overflow-y: auto;       /* 전체 스크롤 허용 */
-      height: auto;           /* 높이 제한 해제 */
+      flex-direction: column; /* 세로로 쌓기 */
+      height: auto;           /* 높이 제한 풀기 */
+      overflow: visible;      /* 자식 요소들이 흐를 수 있게 */
     }
 
     .user-list {
-      width: 100%;            /* 사이드바가 가로를 꽉 채움 */
-      height: auto;
+      width: 100%;            /* 가로 꽉 채우기 */
+      height: auto;           /* 내용만큼 늘어나게 */
+      flex-shrink: 0;
       border-right: none;
-      border-bottom: 1px solid #ddd;
-      padding: 10px;
+      border-bottom: 2px solid #ddd;
     }
 
     .chat-area {
       width: 100%;
-      height: 80vh;          /* 채팅창은 적당한 높이 유지 */
+      height: 90vh;           /* 채팅창은 화면 대부분을 차지하게 고정 */
+      display: flex;
+      flex-direction: column;
     }
 
-    .room-input-group input, .room-input-group button, .logout-area button {
-      width: 90%;            /* 모바일에서 버튼들이 너무 작지 않게 조절 */
+    /* 모바일에서 메시지함이 잘 보이도록 최소 높이 확보 */
+    .messages {
+      flex: 1;
+      min-height: 300px; 
     }
   }
 </style>
