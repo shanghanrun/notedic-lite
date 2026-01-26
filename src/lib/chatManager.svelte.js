@@ -287,7 +287,7 @@ class ChatManager {
 			}
 		} else if(command.startsWith('#')){
 			if(parts.length=== 2){ // #명령과 내용만 있는 경우
-				const user = this.currentUser()
+				const user = this.currentUser
 				const userName = user?.name || user?.username; 
 				target = userName || "Hani Station"  
 				//이때 target은 보내는 사람. 예를 들어, #카톡 안녕하세요.의 경우 보내는 사람이 생략됨
