@@ -432,6 +432,34 @@ const shareSiteToKakao = () => {
     ],
   });
 };
+const messageToKakao = () => {
+  const { Kakao, location } = window;
+  
+  if (!Kakao || !Kakao.isInitialized()) return;
+  const message = prompt("전달할 메시지를 입력하세요: ");
+
+  Kakao.Share.sendDefault({
+    objectType: 'feed',
+    content: {
+      title: '초코의 메시지(Hani Station)',
+      description: message,
+      imageUrl: 'https://hani.chois.cloud/hani_logo.png', 
+      link: {
+        mobileWebUrl: location.origin, // hani.chois.cloud 로 연결
+        webUrl: location.origin,
+      },
+    },
+    buttons: [
+      {
+        title: '사이트를 방문하고 싶다면...',
+        link: {
+          mobileWebUrl: location.origin,
+          webUrl: location.origin,
+        },
+      },
+    ],
+  });
+};
 
 
 </script>
@@ -452,8 +480,8 @@ const shareSiteToKakao = () => {
       </div>
     {/if}
 
-    <button class="share-btn" onclick={shareSiteToKakao}>
-      <span class="icon">💬</span> 친구에게 공유하기
+    <button class="share-btn" onclick={messageToKakao}>
+      <span class="icon">💬</span> 카톡친구에게 메시지
     </button>
     <div class="room-input-group">
       <input bind:value={chatManager.newRoomTitle} placeholder="방 제목 입력..." />
