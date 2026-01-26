@@ -10,36 +10,39 @@
 
 <div class="search-header">
     <div class="search-container">
-        <input 
-            type="text" 
-            bind:value={item.searchQuery}
-            onkeydown={(e) => e.key === 'Enter' && item.startSearch()}
-            placeholder="검색어 입력 (예: 氣/血)"
-            class="search-input"
-            autofocus
-        />
-        
-        <button class="search-button" onclick={() => item.startSearch()}>
-            검색
-        </button>
-
-        <div class="info-badge">
-            매칭: <span class="match-count">{item.searchResults.length}</span>건
+        <div class="main-search-group">
+            <input 
+                type="text" 
+                bind:value={item.searchQuery}
+                onkeydown={(e) => e.key === 'Enter' && item.startSearch()}
+                placeholder="검색어 입력 (예: 氣/血)"
+                class="search-input"
+                autofocus
+            />
+            <button class="search-button" onclick={() => item.startSearch()}>
+                검색
+            </button>
         </div>
 
-		
-		{#if tag === 'local'}
-			<button class="go-button" onclick={() => { item.reset(); goto('/admin'); }}>
-				기존자료 검색
-			</button>
-		{:else if tag === 'server'}
-			<button class="go-button" onclick={() => { item.reset(); goto('/'); }}>
-				Home
-			</button>
-		{/if}
-        <a href="https://music.chois.cloud" class="music-link">
-            음악감상 <span class="icon">&rarr;</span>
-        </a>
+        <div class="sub-action-group">
+            <div class="info-badge">
+                매칭: <span class="match-count">{item.searchResults.length}</span>건
+            </div>
+
+            {#if tag === 'local'}
+                <button class="go-button" onclick={() => { item.reset(); goto('/admin'); }}>
+                    기존자료 검색
+                </button>
+            {:else if tag === 'server'}
+                <button class="go-button" onclick={() => { item.reset(); goto('/'); }}>
+                    Home
+                </button>
+            {/if}
+            
+            <a href="https://music.chois.cloud" class="music-link">
+                음악감상 <span class="icon">&rarr;</span>
+            </a>
+        </div>
     </div>
 </div>
 
@@ -54,21 +57,37 @@
     
     .search-container { 
         display: flex; 
+        flex-wrap: wrap; /* 좁아지면 다음 줄로 넘어가게 허용 */
         gap: 12px; 
         align-items: center;
-        max-width: 1200px; /* 너무 넓게 퍼지는 걸 방지 */
-        margin: 0 auto;    /* 중앙 정렬 */
+        max-width: 1200px;
+        margin: 0 auto;
         width: 100%;
+    }
+    /* 검색창 그룹: 가능한 넓게 차지 */
+    .main-search-group {
+        display: flex;
+        flex: 1;
+        min-width: 300px; /* 이 너비보다 작아지면 다음 그룹이 아래로 내려감 */
+        gap: 8px;
+    }
+
+    /* 버튼 그룹: 내용물에 맞춰 정렬 */
+    .sub-action-group {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        flex-wrap: wrap; /* 버튼들도 너무 많으면 줄바꿈 */
     }
 
     .search-input { 
         flex: 1; 
-        min-width: 200px;  /* 너무 작아지지 않게 방지 */
         padding: 10px 16px; 
         border: 1px solid #d1d5db; 
         border-radius: 6px; 
-        font-size: 20px;   /* 24px에서 살짝 줄여서 노트북 가독성 향상 */
+        font-size: 18px; 
         outline-color: #2563eb;
+        min-width: 0; /* flex 환경에서 줄어들 수 있게 설정 */
     }
 
     .search-button { 
@@ -131,16 +150,34 @@
         transform: translateX(5px); /* 오른쪽으로 슥 이동 */
     }
 
-    /* 노트북이나 태블릿 등 화면이 작아질 때를 위한 '마법의 코드' */
-    @media (max-width: 1024px) {
+    /* 🔥 모바일 마법 (768px 이하) */
+    @media (max-width: 768px) {
+        .search-header {
+            padding: 12px;
+        }
+
         .search-container {
-            gap: 8px;
+            flex-direction: column; /* 세로로 쌓기 */
+            align-items: stretch; /* 자식들이 가로로 꽉 차게 */
+            gap: 15px;
         }
+
+        .main-search-group {
+            width: 100%;
+        }
+
+        .sub-action-group {
+            width: 100%;
+            justify-content: space-between; /* 배지와 버튼들 사이 간격 벌리기 */
+        }
+
+        .music-link {
+            flex: 1; /* 음악감상 버튼이 남은 공간 다 채우게 */
+            justify-content: center;
+        }
+
         .search-input {
-            font-size: 18px;
-        }
-        .info-badge, .go-button {
-            font-size: 0.85rem;
+            font-size: 16px; /* 모바일 입력창 줌 현상 방지 */
         }
     }
 </style>

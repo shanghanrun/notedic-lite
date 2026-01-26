@@ -23,30 +23,31 @@ onMount(() => {
 </div>
 
 <style>
-    /* Google Fonts에서 Noto Sans KR 임포트 */
-	@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700&display=swap');
+    @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700&display=swap');
 
-	:global(body), :global(*) {
-		/* 폰트 적용 (나눔고딕보다 더 현대적이고 깔끔합니다) */
-		font-family: 'Noto Sans KR', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
-		
-		/* 글자를 더 선명하게 만드는 옵션 */
-		-webkit-font-smoothing: antialiased;
-		-moz-osx-font-smoothing: grayscale;
-		text-rendering: optimizeLegibility;
-	}
+    :global(body), :global(html) {
+        margin: 0;
+        padding: 0;
+        /* 모바일에서 스크롤이 막히지 않도록 수정 */
+        height: auto !important; 
+        overflow-x: hidden;
+    }
+
+    :global(*) {
+        font-family: 'Noto Sans KR', sans-serif !important;
+        -webkit-font-smoothing: antialiased;
+        box-sizing: border-box;
+    }
     
-    /* 전체 레이아웃 스타일 */
     .admin-container { 
         display: grid; 
-        grid-template-columns: 300px 1fr; /* 좌측 300px 고정, 우측은 나머지 전부 */
-        /* grid-template-columns: 400px 1fr;  */
+        /* PC 기본값 */
+        grid-template-columns: 310px 1fr; 
         gap: 20px; 
         padding: 20px; 
-        height: 100vh; 
-        box-sizing: border-box; 
-        display: grid;
+        min-height: 100vh; 
     }
+
     .col { 
         background: white; 
         border-radius: 12px; 
@@ -55,6 +56,33 @@ onMount(() => {
         overflow: hidden; 
         box-shadow: 0 2px 10px rgba(0,0,0,0.03); 
     }
-    .main-content { position: relative; }
 
+    /* 🔥 모바일 핵심 브레이크포인트 (768px 이하) */
+    @media (max-width: 768px) {
+        .admin-container {
+            /* 1열 세로 배열로 변경 */
+            grid-template-columns: 1fr; 
+            padding: 10px; /* 여백 줄이기 */
+            gap: 15px;
+            height: auto;
+        }
+
+        .sidebar-wrapper {
+            /* 모바일에서는 사이드바가 위로 올라오거나, 
+               필요 없다면 display: none; 처리도 고려해보세요 */
+            width: 100%;
+            order: 2; /* 검색창이 먼저 보이게 하고 싶다면 2로 설정 */
+        }
+
+        .main-content {
+            width: 100%;
+            order: 1; /* 검색창을 상단으로 배치 */
+            min-height: 80vh; /* 음악 목록이 보일 정도의 최소 높이 */
+        }
+        
+        /* 모바일 폰트 크기 미세 조정 */
+        :global(body) {
+            font-size: 14px;
+        }
+    }
 </style>
