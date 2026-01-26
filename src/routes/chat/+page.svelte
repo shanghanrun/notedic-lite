@@ -808,6 +808,7 @@ const messageToKakao = () => {
     border: 1px solid #ddd;
     border-radius: 6px;
     outline: none;
+    
   }
   .room-input-group button {
     width: 80%;
@@ -818,7 +819,12 @@ const messageToKakao = () => {
     border-radius: 6px;
     font-weight: bold;
     cursor: pointer;
+    transition: all 0.2s ease-in-out;
   }
+   .room-input-group button:hover{
+    background:  #24a058;
+    transform: scale(1.02);  /* 아주 미세하게 커지는 효과 */
+   }
 
 
   /* 사이드바 전체 배경색 설정 (우측과 맞춤) 그리고 여기서 스크롤 발생해야 됨*/
