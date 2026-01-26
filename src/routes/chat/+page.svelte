@@ -1211,4 +1211,30 @@ const shareSiteToKakao = () => {
   .kakao-share-btn:active {
     transform: translateY(0);
   }
+
+  /* --- 모바일 반응형 추가 --- */
+  @media (max-width: 768px) {
+    .chat-layout {
+      flex-direction: column; /* 가로 배열을 세로로 변경 */
+      overflow-y: auto;       /* 전체 스크롤 허용 */
+      height: auto;           /* 높이 제한 해제 */
+    }
+
+    .user-list {
+      width: 100%;            /* 사이드바가 가로를 꽉 채움 */
+      height: auto;
+      border-right: none;
+      border-bottom: 1px solid #ddd;
+      padding: 10px;
+    }
+
+    .chat-area {
+      width: 100%;
+      height: 80vh;          /* 채팅창은 적당한 높이 유지 */
+    }
+
+    .room-input-group input, .room-input-group button, .logout-area button {
+      width: 90%;            /* 모바일에서 버튼들이 너무 작지 않게 조절 */
+    }
+  }
 </style>

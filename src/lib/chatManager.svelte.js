@@ -480,7 +480,7 @@ class ChatManager {
 	}
 
 
-	messageToKakao = (senderName="", message="") => {
+	messageToKakao = async(senderName="", message="") => {
 		// 채팅창에서 [#카톡 이름 메시지] 형태로 카톡메시지 보낼 경우를 위해 함수기능 확장함 
 		const { Kakao, location } = window;
 		
@@ -499,28 +499,34 @@ class ChatManager {
 			finalMessage = prompt("전달할 메시지를 입력하세요:") || "초대 메시지";
 		}
 
-		Kakao.Share.sendDefault({
-			objectType: 'feed',
-			content: {
-			title: `${finalUser}의 메시지`,
-			description: finalMessage,
-			imageUrl: 'https://hani.chois.cloud/hani_logo.png', 
-			link: {
-				mobileWebUrl: location.origin, // hani.chois.cloud 로 연결
-				webUrl: location.origin,
-			},
-			},
-			buttons: [
-			{
-				title: '사이트 방문은 아래 링크로~',
+		try{
+			await Kakao.Share.sendDefault({
+				objectType: 'feed',
+				content: {
+				title: `${finalUser}의 메시지`,
+				description: finalMessage,
+				imageUrl: 'https://hani.chois.cloud/hani_logo.png', 
 				link: {
-				mobileWebUrl: location.origin,
-				webUrl: location.origin,
+					mobileWebUrl: location.origin, // hani.chois.cloud 로 연결
+					webUrl: location.origin,
 				},
-			},
-			],
-		});
-		};
+				},
+				buttons: [
+				{
+					title: '사이트 방문은 아래 링크로~',
+					link: {
+					mobileWebUrl: location.origin,
+					webUrl: location.origin,
+					},
+				},
+				],
+			});
+
+			console.log('카톡 공유창 호출 성공')
+		} catch(e){
+			console.log("카톡 공유 실패: ", e)
+		}		
+	};
 }
 
 export const chatManager = new ChatManager();
