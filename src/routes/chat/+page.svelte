@@ -451,7 +451,7 @@ const messageToKakao = () => {
     },
     buttons: [
       {
-        title: '사이트를 방문하고 싶다면...',
+        title: '사이트 방문은 아래 링크로~',
         link: {
           mobileWebUrl: location.origin,
           webUrl: location.origin,
