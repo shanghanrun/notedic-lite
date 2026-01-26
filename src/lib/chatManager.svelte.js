@@ -179,18 +179,18 @@ class ChatManager {
 
         try {
 			console.log('here!!')
-			if (text.startsWith('#')){
-				this.currentType ='message'
-
+			if (text.startsWith('#') || text.startsWith('@')){ // #으로 시작하는 특수명령어처리(카톡, 이메일 등)
+				console.log('특수 명령어 감지! handleSpecialCommand로 이동');
+            	await this.handleSpecialCommand(text);
+			} else{
+				console.log('일반 메시지 전송');
+				this.currentType = 'message';
 				await pb.collection("messages").create({
 					room: this.activeRoomId,
 					user: pb.authStore.model.id,
-					content: this.newMessage,
+					content: text, // trim된 텍스트 사용 권장
 					type: 'message'
-            	});
-			} else{
-				console.log('#이 아니라서 넘어옴')
-				await this.handleSpecialCommand(text)
+				});
 			}
 			
             this.newMessage = ""; //전송후 입력창 비우기
