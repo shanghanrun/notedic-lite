@@ -480,9 +480,11 @@ const messageToKakao = () => {
       </div>
     {/if}
 
-    <button class="share-btn" onclick={messageToKakao}>
-      <span class="icon">💬</span> 카톡친구에게 메시지
+    <button class="kakao-share-btn" onclick={messageToKakao}>
+      <img src="https://developers.kakao.com/assets/img/about/logos/kakaotalksharing/kakaotalk_sharing_btn_medium.png" alt="카톡" />
+      <span>메시지</span>
     </button>
+
     <div class="room-input-group">
       <input bind:value={chatManager.newRoomTitle} placeholder="방 제목 입력..." />
       <button onclick={() => chatManager.createRoom()}>새 채팅방 만들기</button>
@@ -1183,7 +1185,51 @@ const messageToKakao = () => {
   .autocomplete-list li:last-child { border-bottom: none; }
   .autocomplete-list li:hover { background: #fff0e6; color: #ff6b00; }
 
-  .share-btn{
-    background:yellow
+  .kakao-share-btn {
+    /* [핵심] 부모 너비에 꽉 차게 설정 */
+    width: 80%; 
+    box-sizing: border-box;
+    /* 카카오 공식 노란색 */
+    background-color: #FEE500;
+    color: #191919;
+    
+    /* 버튼 형태: 투박한 테두리 제거 및 둥글게 */
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px; /* 아이콘과 글자 사이 간격 */
+    border: none;
+    border-radius: 8px; /* 둥근 모서리 */
+    /* 세로 높이를 다른 버튼들과 비슷하게 (보통 45~50px 내외) */
+    height: 50px; 
+    padding: 8px 15px;
+    /* 다른 버튼들과의 간격 */
+    margin-bottom: 10px;
+    
+    /* 폰트 및 커서 */
+    font-size: 1rem;
+    font-weight: 450;
+    cursor: pointer;
+    transition: background-color 0.2s, transform 0.1s;
+    
+    /* 그림자: 입체감 살짝 */
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  }
+
+  .kakao-share-btn img {
+    width: 25px; /* 심볼 크기를 살짝 줄여 텍스트와 균형을 맞춤 */
+    height: auto;
+  }
+
+  /* 마우스 올렸을 때 피드백 */
+  .kakao-share-btn:hover {
+    background-color: #FADA0A;
+    transform: translateY(-0.5px);
+    /* 살짝 눌리는 느낌만 줌 */
+    filter: brightness(0.95);
+  }
+
+  .kakao-share-btn:active {
+    transform: translateY(0);
   }
 </style>
