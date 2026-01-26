@@ -30,6 +30,9 @@ class ChatManager {
         if (!this.currentRoom || !pb.authStore.model) return false;
         return this.currentRoom.members?.includes(pb.authStore.model.id);
     }
+	get currentUser(){
+		return pb.authStore.model;
+	}
 
 	// 현재 선택된 방의 멤버 객체(ID + 이름) 목록을 가져오는 유도 상태
 	get currentRoomMembers() {
@@ -284,8 +287,8 @@ class ChatManager {
 			}
 		} else if(command.startsWith('#')){
 			if(parts.length=== 2){ // #명령과 내용만 있는 경우
-				const userId = pb.authStore.model?.id;
-				const userName = pb.authStore.model?.name || pb.authStore.model?.username; 
+				const user = this.currentUser()
+				const userName = user?.name || user?.username; 
 				target = userName || "Hani Station"  
 				//이때 target은 보내는 사람. 예를 들어, #카톡 안녕하세요.의 경우 보내는 사람이 생략됨
 				content = parts[1] // 두번째 덩어리가 내용이 된다.
