@@ -436,12 +436,13 @@ const messageToKakao = () => {
   const { Kakao, location } = window;
   
   if (!Kakao || !Kakao.isInitialized()) return;
+  const user = prompt("보내는 분의 이름(닉네임)을 적어주세요: ")
   const message = prompt("전달할 메시지를 입력하세요: ");
 
   Kakao.Share.sendDefault({
     objectType: 'feed',
     content: {
-      title: '초코의 메시지(Hani Station)',
+      title: `${user}의 메시지`,
       description: message,
       imageUrl: 'https://hani.chois.cloud/hani_logo.png', 
       link: {
