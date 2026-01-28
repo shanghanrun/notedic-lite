@@ -8,9 +8,12 @@
     let { children } = $props();
     let isVisible = $state(true);
 
-    // 페이지 성격에 따른 스타일 분기 및 상태 관리
+    //페이지 성격에 따른 스타일 분기 및 상태 관리
     let isMusicPage = $derived(page.url.pathname.includes('music')); 
-    let activeDirection = $state<'up' | 'down' | null>(null); // 클릭된 방향 상태
+    // 뮤직페이지는, 투명도를 블러로 해서 더 멋지게, 일반페이지는 글자가 보여야 되니 블러처리 안함
+
+    // ⭐️ 초기값을 'down'으로 설정하여 시작부터 파란색 도트가 보이게 합니다.
+    let activeDirection = $state<'up' | 'down'>('down');
 
     function handleAction(direction: 'up' | 'down') {
         // 1. 시각적 피드백 활성화 (파란색으로 변경)
@@ -40,21 +43,21 @@
                     }
                 }
             } catch (e) {
-                console.log("Navigation target not found.");
+                // console.log("Navigation target not found.");
             }
         }
 
         // 3. 형님의 핵심 요구사항: 2초(2000ms) 후에 원래 색으로 복귀
-        setTimeout(() => {
-            activeDirection = null;
-        }, 2000);
+        // setTimeout(() => {
+        //     activeDirection = null;
+        // }, 2000);
     }
 </script>
-
-{@render children()}
 <svelte:head>
 	<link rel="icon" href={favicon} />
 </svelte:head>
+
+{@render children()}
 
 <div class="three-dots-layer" class:use-blur={isMusicPage}>
     <button class="dot green" onclick={() => isVisible = !isVisible}></button>
@@ -87,7 +90,7 @@
         display: flex;
         flex-direction: column;
         align-items: center;
-        pointer-events: none;
+        pointer-events: none;        
     }
 
     /* 2. 공통 도트 스타일 */
@@ -96,17 +99,18 @@
         width: 45px;
         height: 45px;
         border-radius: 50%;
-        border: none;
+        border: 1.2px solid rgb(222, 220, 220);
         cursor: pointer;
-        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        transition: all 0.3s cubic-bezier(0.23, 0, 0.2, 1);
         background-color: rgba(148, 163, 184, 0.25);
+
     }
 
     /* 3. 활성화 상태 (클릭 후 2초간 유지되는 파란색) */
     .dot.active {
-        background-color: rgba(56, 189, 248, 0.9) !important;
-        transform: scale(1.15);
-        box-shadow: 0 0 15px rgba(56, 189, 248, 0.6);
+        background-color: rgba(93, 202, 249, 0.7) !important;
+        /* transform: scale(1.15); */
+        box-shadow: 0 0 15px rgba(56, 189, 248, 0.4);
     }
 
     /* 뮤직앱 전용 블러 */
@@ -126,7 +130,7 @@
         transform: translateY(-50%);
         display: flex;
         flex-direction: column;
-        gap: 20px;
+        gap: 30px;
     }
 
     /* 호버 피드백 */
