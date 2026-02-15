@@ -1,8 +1,11 @@
 {
 	"$schema": "node_modules/wrangler/config-schema.json",
 	"name": "notedic-lite",
-	"compatibility_date": "2024-11-01",
 	"pages_build_output_dir": "build",
+	"compatibility_date": "2024-09-23",
+	"compatibility_flags": [
+		"nodejs_compat"
+	],
 	"observability": {
 		"enabled": true
 	}
