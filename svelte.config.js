@@ -9,8 +9,13 @@ const config = {
   },
   preprocess: vitePreprocess(),
   kit: {
-    // adapter-auto 대신 설치한 cloudflare 어댑터를 연결합니다.
-    adapter: adapter()
+    // 이 부분이 중요합니다!
+		adapter: adapter({
+			// 빌드 결과물이 저장될 폴더를 명시적으로 지정
+			pages: 'build', 
+			assets: 'build',
+			fallback: 'index.html' // SPA 모드일 경우 필요
+		})
   }
 };
 
