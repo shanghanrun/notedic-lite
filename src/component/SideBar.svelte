@@ -86,7 +86,7 @@
     <div class="file-input-wrapper">
         <label class="custom-file-btn">
             📄 로컬 파일 검색 전용 추가 
-            <input type="file" multiple onchange={indexSearchUI.handleFileUpload} />
+            <input type="file" multiple onchange={(e)=>indexSearchUI.handleFileUpload(e)} />
         </label>
     </div>
 
