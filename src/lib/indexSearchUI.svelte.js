@@ -28,6 +28,7 @@ class IndexSearchUI {
     isIndexing = $state(false);   
 
     selectedFiles = $state(new Set()); 
+    isAdminVerified = $state(false)
 
     // 가상 스크롤 상태
     scrollTop = $state(0);
@@ -194,13 +195,14 @@ class IndexSearchUI {
     }
 
     handleFileClick = (e) => {
-        // 1. 먼저 관리자 확인
-        if (!verifyAdmin()) {
-            // 2. 인증 실패 시 파일 탐색기 창이 열리는 것을 막음
-            e.preventDefault(); 
-            return;
+        // 이미 인증되었다면 바로 통과, 아니면 비번 확인
+        if (this.isAdminVerified) return;
+
+        if (verifyAdmin()) {
+            this.isAdminVerified = true; // 세션 동안은 다시 안 묻게 함
+        } else {
+            e.preventDefault();
         }
-        // 인증 성공 시 아무것도 하지 않으면(preventDefault 안 하면) 자연스럽게 파일 창이 열림
     }
 	handleFileUpload = async (e) => {
         // 1. 관리자 체크 (동기 함수이므로 즉시 실행 및 중단)
