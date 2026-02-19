@@ -14,7 +14,7 @@
             type="text" 
             bind:value={item.searchInput}
             onkeydown={(e) => e.key === 'Enter' && item.startSearch()}
-            placeholder="검색어 입력 (예: 氣/血)"
+            placeholder="3음절이하 가능(계지가/황기O  계지가황기X  대황/목단O 대황목단X)"
             class="search-input"
         />
         
