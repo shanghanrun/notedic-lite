@@ -206,6 +206,7 @@ export const researchActions = {
 
 // 관리자 비밀번호 확인 함수
 export function verifyAdmin() {
+    console.log('verifyAdmin 실행됨')
     const password = prompt("관리자용입니다. 관리자 비밀번호를 입력하세요:");
     if (password === "741852") {
         return true;
