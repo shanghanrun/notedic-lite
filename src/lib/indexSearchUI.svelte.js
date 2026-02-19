@@ -193,16 +193,25 @@ class IndexSearchUI {
         if (this.searchQuery) this.scrollTop = 0;
     }
 
+    handleFileClick = (e) => {
+        // 1. 먼저 관리자 확인
+        if (!verifyAdmin()) {
+            // 2. 인증 실패 시 파일 탐색기 창이 열리는 것을 막음
+            e.preventDefault(); 
+            return;
+        }
+        // 인증 성공 시 아무것도 하지 않으면(preventDefault 안 하면) 자연스럽게 파일 창이 열림
+    }
 	handleFileUpload = async (e) => {
         // 1. 관리자 체크 (동기 함수이므로 즉시 실행 및 중단)
-        const isAdmin = verifyAdmin();
-        console.log("Admin Check Result:", isAdmin);
+        // const isAdmin = verifyAdmin();
+        // console.log("Admin Check Result:", isAdmin);
         
-        if (!isAdmin) {
-            // 비밀번호가 틀리면 여기서 즉시 중단
-            e.target.value = ""; // 선택된 파일 초기화 (보안 및 UI 초기화)
-            return; 
-        }
+        // if (!isAdmin) {
+        //     // 비밀번호가 틀리면 여기서 즉시 중단
+        //     e.target.value = ""; // 선택된 파일 초기화 (보안 및 UI 초기화)
+        //     return; 
+        // }
 
         // 2. 관리자 확인 후 파일 처리 시작
         const files = Array.from(e.target.files);
