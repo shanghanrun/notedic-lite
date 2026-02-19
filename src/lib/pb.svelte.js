@@ -1,8 +1,10 @@
 import PocketBase from 'pocketbase';
 import mammoth from 'mammoth';
-import { PUBLIC_PB_URL } from '$env/static/public';
+// import { PUBLIC_PB_URL } from '$env/static/public';
 import { searchUI } from './searchUI.svelte.js'
 
+// 환경 변수 대신 직접 주소를 할당합니다.
+const PUBLIC_PB_URL = 'https://chois.cloud';
 export const pb = new PocketBase(PUBLIC_PB_URL);
 
 
