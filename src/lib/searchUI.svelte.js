@@ -5,6 +5,8 @@ import { Document, Packer, Paragraph, TextRun } from 'docx';
 class SearchUI {
     type = "local";
     files = $state([]); // { name, lines, checked: true }
+    // 1. [구조 변경] 입력 중인 글자와 실제 검색어를 분리합니다.
+    searchInput = $state(""); // 화면의 input과 바인딩
     searchQuery = $state("");
 
     // 실험적 코드
@@ -36,6 +38,24 @@ class SearchUI {
             queries: queries
         };
     });
+
+    startSearch() {
+        const input = this.searchInput.trim();
+        
+        // 검색어가 없으면 초기화
+        if (!input) {
+            this.searchQuery = "";
+            return;
+        }
+
+        // 실제 검색어($derived가 감시하는 변수)에 값을 전달하여 검색 트리거
+        this.searchQuery = input;
+        
+        // 검색 시 스크롤을 맨 위로 초기화
+        this.scrollTop = 0;
+        
+        console.log("로컬 검색 실행:", this.searchQuery);
+    }
 
     // [검색 결과 계산]
     searchResults = $derived.by(() => {

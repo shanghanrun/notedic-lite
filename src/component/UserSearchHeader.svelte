@@ -14,12 +14,12 @@
             <input 
                 type="text" 
                 bind:value={item.searchQuery}
-                onkeydown={(e) => e.key === 'Enter' && item.startSearch()}
+                onkeydown={(e) => e.key === 'Enter' && item.startSearch?()}
                 placeholder="검색어 입력 (예: 氣/血)"
                 class="search-input"
                 autofocus
             />
-            <button class="search-button" onclick={() => item.startSearch()}>
+            <button class="search-button" onclick={() => item.startSearch?()}>
                 검색
             </button>
         </div>
