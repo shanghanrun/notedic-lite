@@ -1,6 +1,7 @@
 <script>
     import { searchUI } from '$lib/searchUI.svelte.js';
     import { slide } from 'svelte/transition';
+    let isDragging = $state(false);
 </script>
 
 <aside class="col sidebar">
@@ -26,7 +27,12 @@
             {/if}
         </div>
 
-        <div class="file-list-container">
+        <div class="file-list-container"
+            class:is-dragging={isDragging}
+            ondragover={(e) => { e.preventDefault(); isDragging = true; }}
+            ondragleave={() => isDragging = false}
+            ondrop={searchUI.handleFileDrop}
+        >
             {#if searchUI.files.length > 0}
                 {#each searchUI.files as file, i}
                     <div class="indexing-item-card" 
@@ -49,7 +55,9 @@
                 {/each}
             {:else}
                 <div class="empty-state" transition:slide>
-                    <p style="font-weight: 300; color: blue">파일을 추가해 주세요.</p>
+                    <p style="font-weight: 300; color: {isDragging ? 'green' : 'blue'}">
+                        {isDragging ? '파일을 여기에 놓으세요!' : '파일을 추가하거나 드래그해 넣으세요.'}
+                    </p>
                 </div>
             {/if}
         </div>
@@ -165,5 +173,22 @@
         /* 선과 글자 사이의 여백을 줘서 숨통을 틔워줍니다 */
         padding-bottom: 8px; 
         /* margin-bottom: 20px; */
+    }
+
+    .file-list-container {
+        min-height: 200px; /* 드롭할 영역 확보 */
+        border: 2px dashed transparent;
+        transition: all 0.2s ease;
+    }
+
+    /* 드래그 중일 때 활성화되는 스타일 */
+    .file-list-container.is-dragging {
+        border-color: #008000; /* 초록색 점선 */
+        background-color: rgba(0, 128, 0, 0.05);
+        transform: scale(1.01);
+    }
+
+    .empty-state {
+        pointer-events: none; /* 텍스트가 드롭 이벤트를 방해하지 않도록 설정 */
     }
 </style>

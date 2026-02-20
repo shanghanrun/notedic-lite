@@ -204,16 +204,9 @@ class IndexSearchUI {
             e.preventDefault();
         }
     }
+
+    
 	handleFileUpload = async (e) => {
-        // 1. 관리자 체크 (동기 함수이므로 즉시 실행 및 중단)
-        // const isAdmin = verifyAdmin();
-        // console.log("Admin Check Result:", isAdmin);
-        
-        // if (!isAdmin) {
-        //     // 비밀번호가 틀리면 여기서 즉시 중단
-        //     e.target.value = ""; // 선택된 파일 초기화 (보안 및 UI 초기화)
-        //     return; 
-        // }
 
         // 2. 관리자 확인 후 파일 처리 시작
         const files = Array.from(e.target.files);

@@ -7,6 +7,7 @@
     import { slide } from 'svelte/transition';
 
     let { showStatusMonitor = $bindable() } = $props();
+    let isDragging = $state(false);
 
     // 상태 체크 후 자동 닫기
     function checkAllDoneAndHide() {

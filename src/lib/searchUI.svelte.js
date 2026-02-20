@@ -175,27 +175,85 @@ class SearchUI {
         this.scrollTop = e.target.scrollTop;
     }
 
-    handleFileUpload = async (e) => {
-        const uploadedFiles = Array.from(e.target.files);
+    // 클릭과 드롭 어디서든 호출할 수 있는 로컬 파일 처리 함수
+    uploadAndProcessFiles = async (files) => {
+        const uploadedFiles = Array.from(files);
         let newFilesData = [];
+
         for (const file of uploadedFiles) {
+            // 🌟 [추가] 중복 체크: 이미 있는 파일이면 경고 후 다음 파일로 이동
+            const isDuplicate = this.files.some(existingFile => existingFile.name === file.name);
+            if (isDuplicate) {
+                alert(`'${file.name}' 파일은 이미 추가되어 있습니다.`);
+                continue; 
+            }
+            // 확장자 체크
             const isDocx = file.name.endsWith('.docx');
             const isTxt = file.name.endsWith('.txt');
             if (!isDocx && !isTxt) continue;
 
             try {
+                // 🌟 .docx와 .txt 분기 처리 로직
                 let text = isDocx
                     ? (await mammoth.extractRawText({ arrayBuffer: await file.arrayBuffer() })).value 
                     : await file.text();
+
                 if (text) {
+                    // 줄 단위로 쪼개고 공백 제거
                     const lines = text.split(/\r?\n/).map(l => l.trim()).filter(l => l !== "");
-                    newFilesData.push({ name: file.name, lines, checked: true });
+                    
+                    // 새로운 파일 데이터 객체 생성
+                    newFilesData.push({ 
+                        name: file.name, 
+                        lines: lines, 
+                        checked: true 
+                    });
                 }
-            } catch (err) { console.error(err); }
+            } catch (err) { 
+                console.error(`${file.name} 처리 중 오류 발생:`, err); 
+            }
         }
+
+        // 기존 목록에 새 파일들 추가
         this.files = [...this.files, ...newFilesData];
-        e.target.value = ""; 
     }
+
+    // (A) 기존 파일 선택 버튼 (<input type="file">)
+    handleFileUpload = async (e) => {
+        await this.uploadAndProcessFiles(e.target.files);
+        e.target.value = ''; // 같은 파일 다시 올릴 수 있도록 초기화
+    }
+    // (B) 드롭존 드래그 앤 드롭
+    handleFileDrop = async (e) => {
+        e.preventDefault();
+        this.isDragging = false; // 드래그 시각 효과 해제
+        
+        // 드롭된 파일들 전달
+        await this.uploadAndProcessFiles(e.dataTransfer.files);
+    };
+    
+
+    // handleFileUpload = async (e) => {
+    //     const uploadedFiles = Array.from(e.target.files);
+    //     let newFilesData = [];
+    //     for (const file of uploadedFiles) {
+    //         const isDocx = file.name.endsWith('.docx');
+    //         const isTxt = file.name.endsWith('.txt');
+    //         if (!isDocx && !isTxt) continue;
+
+    //         try {
+    //             let text = isDocx
+    //                 ? (await mammoth.extractRawText({ arrayBuffer: await file.arrayBuffer() })).value 
+    //                 : await file.text();
+    //             if (text) {
+    //                 const lines = text.split(/\r?\n/).map(l => l.trim()).filter(l => l !== "");
+    //                 newFilesData.push({ name: file.name, lines, checked: true });
+    //             }
+    //         } catch (err) { console.error(err); }
+    //     }
+    //     this.files = [...this.files, ...newFilesData];
+    //     e.target.value = ""; 
+    // }
 
     get groupedResults() {
        const results = this.searchResults;
