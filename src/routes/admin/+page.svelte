@@ -57,6 +57,8 @@
         padding: 20px; 
         height: 100vh; 
         box-sizing: border-box; 
+        /* 추가: 전체 컨테이너는 스크롤이 생기지 않게 꽉 잡아줌 */
+        overflow: hidden;
     }
     .col { 
         background: white; 
@@ -66,5 +68,12 @@
         overflow: hidden; 
         box-shadow: 0 2px 10px rgba(0,0,0,0.03); 
     }
-    .main-content { position: relative; }
+    .main-content { 
+        position: relative; 
+        display: flex;
+        flex-direction: column;
+        /* 추가: 자식의 스크롤을 부모가 흡수하도록 설정 */
+        overflow-y: auto; 
+        height: 100%;
+    }
 </style>

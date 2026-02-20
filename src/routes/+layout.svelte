@@ -15,42 +15,33 @@
     // ⭐️ 초기값을 'down'으로 설정하여 시작부터 파란색 도트가 보이게 합니다.
     let activeDirection = $state<'up' | 'down'>('down');
 
+    // 3dots 컴포넌트 내부의 함수
     function handleAction(direction: 'up' | 'down') {
-        // 1. 시각적 피드백 활성화 (파란색으로 변경)
         activeDirection = direction;
 
-        // 2. 스크롤 여부 확인
-        const hasScroll = document.documentElement.scrollHeight > window.innerHeight;
-
-        if (hasScroll) {
-            // [상황 A] 스크롤바가 있는 경우: 시원하게 90% 이동
+        // 1. 가상 스크롤이 일어나고 있는 진짜 '스크롤 박스'를 찾습니다.
+        // SearchResultView 내부에서 실제로 스크롤바가 생기는 div를 찾아야 합니다.
+        // 보통 클래스가 없으면 main-content 내부의 div를 뒤져야 합니다.
+        const scrollBox = document.querySelector('.main-content div[style*="overflow-y: auto"]') || 
+                          document.querySelector('.main-content') as HTMLElement;
+        
+        if (scrollBox && scrollBox.scrollHeight > scrollBox.clientHeight) {
+            // 박스 내부에 스크롤이 있는 경우
+            const moveDistance = scrollBox.clientHeight * 0.9;
+            scrollBox.scrollBy({
+                top: direction === 'up' ? -moveDistance : moveDistance,
+                behavior: 'smooth'
+            });
+            console.log("내부 박스 스크롤 실행");
+        } else {
+            // 윈도우 전체 스크롤
             const moveDistance = window.innerHeight * 0.9;
             window.scrollBy({
                 top: direction === 'up' ? -moveDistance : moveDistance,
                 behavior: 'smooth'
             });
-        } 
-        else {
-            // [상황 B] 스크롤바가 없는 경우: 외부 객체(bookWork) 연동
-            try {
-                // @ts-ignore
-                const target = typeof bookWork !== 'undefined' ? bookWork : null;
-                if (target && target.doc) {
-                    if (direction === 'up' && target.selectedIndex > 0) {
-                        target.selectedIndex--;
-                    } else if (direction === 'down' && target.selectedIndex < target.doc.textSegments.length - 1) {
-                        target.selectedIndex++;
-                    }
-                }
-            } catch (e) {
-                // console.log("Navigation target not found.");
-            }
+            console.log("윈도우 스크롤 실행");
         }
-
-        // 3. 형님의 핵심 요구사항: 2초(2000ms) 후에 원래 색으로 복귀
-        // setTimeout(() => {
-        //     activeDirection = null;
-        // }, 2000);
     }
 </script>
 <svelte:head>
